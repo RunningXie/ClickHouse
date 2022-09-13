@@ -54,6 +54,7 @@ public:
     void removeSharedRecursive(const String & path, bool keep_s3) override;
     void removeSharedFiles(const RemoveBatchRequest & files, bool keep_in_remote_fs) override;
     void setLastModified(const String & path, const Poco::Timestamp & timestamp) override;
+    time_t getLastChanged(const String & path) const override;
     Poco::Timestamp getLastModified(const String & path) override;
     void setReadOnly(const String & path) override;
     void createHardLink(const String & src_path, const String & dst_path) override;

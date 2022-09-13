@@ -51,4 +51,5 @@ bool canWrite(const std::string & path);
 time_t getModificationTime(const std::string & path);
 Poco::Timestamp getModificationTimestamp(const std::string & path);
 void setModificationTime(const std::string & path, time_t time);
+time_t getChangeTime(const std::string & path);
 }

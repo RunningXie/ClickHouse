@@ -268,6 +268,11 @@ std::unordered_map<String, String> IDiskRemote::getSerializedMetadata(const std:
     return metadatas;
 }
 
+time_t IDiskRemote::getLastChanged(const String & path) const
+{
+    return metadata_disk->getLastChanged(path);
+}
+
 void IDiskRemote::removeMetadata(const String & path, RemoteFSPathKeeperPtr fs_paths_keeper)
 {
     LOG_TRACE(log, "Remove file by path: {}", backQuote(metadata_disk->getPath() + path));
