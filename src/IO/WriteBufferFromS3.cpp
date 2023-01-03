@@ -86,7 +86,6 @@ void WriteBufferFromS3::nextImpl()
     temporary_buffer->write(working_buffer.begin(), offset());
 
     ProfileEvents::increment(ProfileEvents::S3WriteBytes, offset());
-
     last_part_size += offset();
 
     /// Data size exceeds singlepart upload threshold, need to use multipart upload.
@@ -204,6 +203,7 @@ void WriteBufferFromS3::writePart()
     if (schedule)
     {
         UploadPartTask * task = nullptr;
+
         int part_number;
         {
             std::lock_guard lock(bg_tasks_mutex);
@@ -212,29 +212,42 @@ void WriteBufferFromS3::writePart()
             part_number = num_added_bg_tasks;
         }
 
-        fillUploadRequest(task->req, part_number);
-        schedule([this, task]()
+        /// Notify waiting thread when task finished
+        auto task_finish_notify = [&, task]()
         {
-            try
-            {
-                processUploadRequest(*task);
-            }
-            catch (...)
-            {
-                task->exception = std::current_exception();
-            }
+            std::lock_guard lock(bg_tasks_mutex);
+            task->is_finised = true;
+            ++num_finished_bg_tasks;
 
-            {
-                std::lock_guard lock(bg_tasks_mutex);
-                task->is_finised = true;
-                ++num_finished_bg_tasks;
+            /// Notification under mutex is important here.
+            /// Otherwise, WriteBuffer could be destroyed in between
+            /// Releasing lock and condvar notification.
+            bg_tasks_condvar.notify_one();
+        };
 
-                /// Notification under mutex is important here.
-                /// Othervies, WriteBuffer could be destroyed in between
-                /// Releasing lock and condvar notification.
-                bg_tasks_condvar.notify_one();
-            }
-        });
+        try
+        {
+            fillUploadRequest(task->req, part_number);
+
+            schedule([this, task, task_finish_notify]()
+            {
+                try
+                {
+                    processUploadRequest(*task);
+                }
+                catch (...)
+                {
+                    task->exception = std::current_exception();
+                }
+
+                task_finish_notify();
+            });
+        }
+        catch (...)
+        {
+            task_finish_notify();
+            throw;
+        }
     }
     else
     {
@@ -328,29 +341,42 @@ void WriteBufferFromS3::makeSinglepartUpload()
     if (schedule)
     {
         put_object_task = std::make_unique<PutObjectTask>();
-        fillPutRequest(put_object_task->req);
-        schedule([this]()
+
+        /// Notify waiting thread when put object task finished
+        auto task_notify_finish = [&]()
         {
-            try
-            {
-                processPutRequest(*put_object_task);
-            }
-            catch (...)
-            {
-                put_object_task->exception = std::current_exception();
-            }
+            std::lock_guard lock(bg_tasks_mutex);
+            put_object_task->is_finised = true;
 
+            /// Notification under mutex is important here.
+            /// Othervies, WriteBuffer could be destroyed in between
+            /// Releasing lock and condvar notification.
+            bg_tasks_condvar.notify_one();
+        };
+
+        try
+        {
+            fillPutRequest(put_object_task->req);
+
+            schedule([this, task_notify_finish]()
             {
-                std::lock_guard lock(bg_tasks_mutex);
-                put_object_task->is_finised = true;
+                try
+                {
+                    processPutRequest(*put_object_task);
+                }
+                catch (...)
+                {
+                    put_object_task->exception = std::current_exception();
+                }
 
-                /// Notification under mutex is important here.
-                /// Othervies, WriteBuffer could be destroyed in between
-                /// Releasing lock and condvar notification.
-                bg_tasks_condvar.notify_one();
-            }
-
-        });
+                task_notify_finish();
+            });
+        }
+        catch (...)
+        {
+            task_notify_finish();
+            throw;
+        }
     }
     else
     {

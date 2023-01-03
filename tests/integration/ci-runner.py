@@ -241,8 +241,7 @@ class ClickhouseIntegrationTestsRunner:
             return name + ":latest"
         return name
 
-    def get_single_image_version(self):
-        name = self.get_images_names()[0]
+    def get_image_version(self, name: str):
         if name in self.image_versions:
             return self.image_versions[name]
         logging.warn(
@@ -329,6 +328,11 @@ class ClickhouseIntegrationTestsRunner:
         )
 
     def _compress_logs(self, dir, relpaths, result_path):
+        # We execute sync in advance to have all files written after containers
+        # are finished or killed
+        subprocess.check_call(  # STYLE_CHECK_ALLOW_SUBPROCESS_CHECK_CALL
+            "sync", shell=True
+        )
         subprocess.check_call(  # STYLE_CHECK_ALLOW_SUBPROCESS_CHECK_CALL
             "tar czf {} -C {} {}".format(result_path, dir, " ".join(relpaths)),
             shell=True,
@@ -464,7 +468,7 @@ class ClickhouseIntegrationTestsRunner:
         ):
             for img in self.get_images_names():
                 if img == "clickhouse/integration-tests-runner":
-                    runner_version = self.get_single_image_version()
+                    runner_version = self.get_image_version(img)
                     logging.info(
                         "Can run with custom docker image version %s", runner_version
                     )
