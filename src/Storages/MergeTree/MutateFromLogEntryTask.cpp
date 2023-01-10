@@ -144,7 +144,7 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MutateFromLogEntry
 bool MutateFromLogEntryTask::finalize(ReplicatedMergeMutateTaskBase::PartLogWriter write_part_log)
 {
     new_part = mutate_task->getFuture().get();
-
+    mutate_task.reset();
     storage.renameTempPartAndReplace(new_part, nullptr, transaction_ptr.get());
 
     try
@@ -162,7 +162,7 @@ bool MutateFromLogEntryTask::finalize(ReplicatedMergeMutateTaskBase::PartLogWrit
             LOG_ERROR(log, "{}. Data after mutation is not byte-identical to data on another replicas. We will download merged part from replica to force byte-identical result.", getCurrentExceptionMessage(false));
 
             write_part_log(ExecutionStatus::fromCurrentException());
-
+            
             if (storage.getSettings()->detach_not_byte_identical_parts)
                 storage.forgetPartAndMoveToDetached(std::move(new_part), "mutate-not-byte-identical");
             else
