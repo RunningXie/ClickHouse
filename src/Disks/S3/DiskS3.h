@@ -103,7 +103,7 @@ public:
     DiskType getType() const override { return DiskType::S3; }
     bool isRemote() const override { return true; }
 
-    bool supportZeroCopyReplication() const override { return true; }
+    bool supportZeroCopyReplication() const override { return false; }
 
     void shutdown() override;
 
