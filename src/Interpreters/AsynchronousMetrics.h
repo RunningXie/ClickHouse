@@ -183,8 +183,11 @@ private:
 #endif
 
     std::unique_ptr<ThreadFromGlobalPool> thread;
+    std::unique_ptr<ThreadFromGlobalPool> memory_tracker_thread;
+
 
     void run();
+    void amendMemoryTracker();
     void update(std::chrono::system_clock::time_point update_time);
 
     Poco::Logger * log;

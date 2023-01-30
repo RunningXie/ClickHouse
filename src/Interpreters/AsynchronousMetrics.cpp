@@ -268,6 +268,7 @@ void AsynchronousMetrics::start()
     /// (without waiting for asynchronous_metrics_update_period_s).
     update(std::chrono::system_clock::now());
     thread = std::make_unique<ThreadFromGlobalPool>([this] { run(); });
+    memory_tracker_thread = std::make_unique<ThreadFromGlobalPool>([this] { amendMemoryTracker(); });
 }
 
 void AsynchronousMetrics::stop()
@@ -279,11 +280,16 @@ void AsynchronousMetrics::stop()
             quit = true;
         }
 
-        wait_cond.notify_one();
+        wait_cond.notify_all();
         if (thread)
         {
             thread->join();
             thread.reset();
+        }
+        if (memory_tracker_thread)
+        {
+            memory_tracker_thread->join();
+            memory_tracker_thread.reset();
         }
     }
     catch (...)
@@ -349,6 +355,59 @@ void AsynchronousMetrics::run()
         try
         {
             update(next_update_time);
+        }
+        catch (...)
+        {
+            tryLogCurrentException(__PRETTY_FUNCTION__);
+        }
+    }
+}
+
+void AsynchronousMetrics::amendMemoryTracker()
+{
+    setThreadName("AmendMemoryTracker");
+
+    while (true)
+    {
+        auto next_update_time = get_next_update_time(update_period);
+
+        {
+            // Wait first, so that the first metric collection is also on even time.
+            std::unique_lock lock{mutex};
+            if (wait_cond.wait_until(lock, next_update_time,
+                [this] { return quit; }))
+            {
+                break;
+            }
+        }
+
+        try
+        {
+            /// Process process memory usage according to OS
+            #if defined(OS_LINUX) || defined(OS_FREEBSD)
+                MemoryStatisticsOS::Data data = memory_stat.get();
+
+                /// We must update the value of total_memory_tracker periodically.
+                /// Otherwise it might be calculated incorrectly - it can include a "drift" of memory amount.
+                /// See https://github.com/ClickHouse/ClickHouse/issues/10293
+                Int64 amount = total_memory_tracker.get();
+                Int64 peak = total_memory_tracker.getPeak();
+                Int64 new_amount = data.resident;
+
+                Int64 difference = new_amount - amount;
+
+                /// Log only if difference is high. This is for convenience. The threshold is arbitrary.
+                if (difference >= 1048576 || difference <= -1048576)
+                    LOG_TRACE(log,
+                        "MemoryTracking: was {}, peak {}, will set to {} (RSS), difference: {}",
+                        ReadableSize(amount),
+                        ReadableSize(peak),
+                        ReadableSize(new_amount),
+                        ReadableSize(difference));
+
+                total_memory_tracker.set(new_amount);
+                CurrentMetrics::set(CurrentMetrics::MemoryTracking, new_amount);
+            #endif       
         }
         catch (...)
         {
@@ -635,25 +694,25 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
         /// We must update the value of total_memory_tracker periodically.
         /// Otherwise it might be calculated incorrectly - it can include a "drift" of memory amount.
         /// See https://github.com/ClickHouse/ClickHouse/issues/10293
-        {
-            Int64 amount = total_memory_tracker.get();
-            Int64 peak = total_memory_tracker.getPeak();
-            Int64 new_amount = data.resident;
+        // {
+        //     Int64 amount = total_memory_tracker.get();
+        //     Int64 peak = total_memory_tracker.getPeak();
+        //     Int64 new_amount = data.resident;
 
-            Int64 difference = new_amount - amount;
+        //     Int64 difference = new_amount - amount;
 
-            /// Log only if difference is high. This is for convenience. The threshold is arbitrary.
-            if (difference >= 1048576 || difference <= -1048576)
-                LOG_TRACE(log,
-                    "MemoryTracking: was {}, peak {}, will set to {} (RSS), difference: {}",
-                    ReadableSize(amount),
-                    ReadableSize(peak),
-                    ReadableSize(new_amount),
-                    ReadableSize(difference));
+        //     /// Log only if difference is high. This is for convenience. The threshold is arbitrary.
+        //     if (difference >= 1048576 || difference <= -1048576)
+        //         LOG_TRACE(log,
+        //             "MemoryTracking: was {}, peak {}, will set to {} (RSS), difference: {}",
+        //             ReadableSize(amount),
+        //             ReadableSize(peak),
+        //             ReadableSize(new_amount),
+        //             ReadableSize(difference));
 
-            total_memory_tracker.set(new_amount);
-            CurrentMetrics::set(CurrentMetrics::MemoryTracking, new_amount);
-        }
+        //     total_memory_tracker.set(new_amount);
+        //     CurrentMetrics::set(CurrentMetrics::MemoryTracking, new_amount);
+        // }
     }
 #endif
 
