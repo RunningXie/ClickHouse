@@ -236,6 +236,30 @@ MergeTreeData::DataPartPtr MergeTreePartsMover::clonePart(const MergeTreeMoveEnt
 
 }
 
+void MergeTreePartsMover::clearMovingDataParts()
+{
+    const auto policy = data->getStoragePolicy();
+    const auto & volumes = policy->getVolumes();
+
+    for (auto &volume : volumes)
+    {
+        const Disks& disks = volume->getDisks();
+        for (auto &disk : disks)
+        {
+            const String& root_path = data->getRelativeDataPath();
+            String relative_path = root_path + "moving";
+            if (disk->exists(relative_path))
+            {
+                LOG_TRACE(log, "Directory {} will be cleared", relative_path);
+                disk->removeRecursive(relative_path);
+            }
+            else
+            {
+                LOG_TRACE(log, "Directory {} is not exists for volume {} disk {}", relative_path, disk->getName(), volume->getName());
+            }
+        }
+    }
+}
 
 void MergeTreePartsMover::swapClonedPart(const MergeTreeData::DataPartPtr & cloned_part) const
 {
@@ -247,8 +271,9 @@ void MergeTreePartsMover::swapClonedPart(const MergeTreeData::DataPartPtr & clon
     /// It's ok, because we don't block moving parts for merges or mutations
     if (!active_part || active_part->name != cloned_part->name)
     {
-        LOG_INFO(log, "Failed to swap {}. Active part doesn't exist. Possible it was merged or mutated. Will remove copy on path '{}'.", cloned_part->name, cloned_part->getFullPath());
-        return;
+        throw Exception(fmt::format("Failed to swap {}. Active part doesn't exist."
+            "Possible it was merged or mutated. Will remove copy on path '{}'.",
+            cloned_part->name, cloned_part->getFullPath()), ErrorCodes::ABORTED);
     }
 
     /// Don't remove new directory but throw an error because it may contain part which is currently in use.
