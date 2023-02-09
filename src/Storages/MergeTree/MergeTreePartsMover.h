@@ -40,6 +40,7 @@ public:
         : data(data_)
         , log(&Poco::Logger::get("MergeTreePartsMover"))
     {
+        clearMovingDataParts();
     }
 
     /// Select parts for background moves according to storage_policy configuration.
@@ -58,6 +59,9 @@ public:
     /// cloned part will be removed and log message will be reported. It may happen in case of concurrent
     /// merge or mutation.
     void swapClonedPart(const std::shared_ptr<const IMergeTreeDataPart> & cloned_parts) const;
+
+    /// Clear moving data parts in moving folders.
+    void clearMovingDataParts();
 
     /// Can stop background moves and moves from queries
     ActionBlocker moves_blocker;
