@@ -211,7 +211,14 @@ ProcessList::EntryPtr ProcessList::insert(const String & query_, const IAST * as
             thread_group->normalized_query_hash = normalizedQueryHash<false>(query_);
 
             /// Set query-level memory trackers
-            thread_group->memory_tracker.setOrRaiseHardLimit(settings.max_memory_usage);
+            if (0 == settings.max_memory_usage)
+            {
+                thread_group->memory_tracker.setOrRaiseHardLimit(total_memory_tracker.getHardLimit());
+            }
+            else
+            {
+                thread_group->memory_tracker.setOrRaiseHardLimit(settings.max_memory_usage);
+            }
             thread_group->memory_tracker.setSoftLimit(settings.max_guaranteed_memory_usage);
 
             if (query_context->hasTraceCollector())
