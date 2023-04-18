@@ -49,7 +49,16 @@ void OwnPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_ext,
     if (color)
         writeCString(resetColor(), wb);
     writeCString("} ", wb);
-
+    auto filePath = msg.getSourceFile();
+    if (filePath)
+    {
+        writeCString("[", wb);
+        auto fileName = strrchr(filePath, '/') ? strrchr(filePath, '/') + 1 : filePath;
+        writeCString(fileName, wb);
+        writeCString("@", wb);
+        DB::writeString(std::to_string(msg.getSourceLine()), wb);
+        writeCString("] ", wb);
+    }
     writeCString("<", wb);
     int priority = static_cast<int>(msg.getPriority());
     if (color)

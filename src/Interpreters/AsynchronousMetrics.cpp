@@ -65,6 +65,18 @@ static std::unique_ptr<ReadBufferFromFilePRead> openFileIfExists(const std::stri
 
 #endif
 
+bool fdInvalidExpection(Exception e)
+{
+    const char * fdInvalidMessage = "errno: 107, strerror: Transport endpoint is not connected";
+    const char * exceptionContent = e.what();
+    if (!strstr(exceptionContent, fdInvalidMessage))
+    {
+        LOG_WARNING(&Poco::Logger::get("AsynchronousMetrics"), "exception not match: [{}].", exceptionContent);
+        return false;
+    }
+    LOG_WARNING(&Poco::Logger::get("AsynchronousMetrics"), "Got invalid file description, error: {}.", exceptionContent);
+    return true;
+}
 
 AsynchronousMetrics::AsynchronousMetrics(
     ContextPtr global_context_,
@@ -745,9 +757,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
             new_values["OSThreadsRunnable"] = threads_runnable;
             new_values["OSThreadsTotal"] = threads_total;
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                    tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/loadavg", loadavg);
         }
     }
@@ -763,9 +776,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
 
             new_values["OSUptime"] = uptime_seconds;
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/uptime", uptime);
         }
     }
@@ -900,9 +914,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
 
             proc_stat_values_other = current_other_values;
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/stat", proc_stat);
         }
     }
@@ -984,9 +999,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
 
             new_values["OSMemoryFreePlusCached"] = free_plus_cached_bytes;
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/meminfo", meminfo);
         }
     }
@@ -1031,9 +1047,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
                 }
             }
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/cpuinfo", cpuinfo);
         }
     }
@@ -1048,9 +1065,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
             readText(open_files, *file_nr);
             new_values["OSOpenFiles"] = open_files;
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/sys/fs/file-nr", file_nr);
         }
     }
@@ -1208,9 +1226,10 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
                 }
             }
         }
-        catch (...)
+        catch (Exception e)
         {
-            tryLogCurrentException(__PRETTY_FUNCTION__);
+            if (!fdInvalidExpection(e))
+                tryLogCurrentException(__PRETTY_FUNCTION__);
             openFileIfExists("/proc/net/dev", net_dev);
         }
     }

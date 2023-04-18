@@ -23,25 +23,21 @@ namespace
 ///  and the latter arguments treat as values to substitute.
 /// If only one argument is provided, it is threat as message without substitutions.
 
-#define LOG_IMPL(logger, priority, PRIORITY, ...) do                              \
-{                                                                                 \
-    const bool is_clients_log = (DB::CurrentThread::getGroup() != nullptr) &&     \
-        (DB::CurrentThread::getGroup()->client_logs_level >= (priority));         \
-    if ((logger)->is((PRIORITY)) || is_clients_log)                               \
-    {                                                                             \
-        std::string formatted_message = numArgs(__VA_ARGS__) > 1 ? fmt::format(__VA_ARGS__) : firstArg(__VA_ARGS__); \
-        if (auto channel = (logger)->getChannel())                                \
-        {                                                                         \
-            std::string file_function;                                            \
-            file_function += __FILE__;                                            \
-            file_function += "; ";                                                \
-            file_function += __PRETTY_FUNCTION__;                                 \
-            Poco::Message poco_message((logger)->name(), formatted_message,       \
-                                 (PRIORITY), file_function.c_str(), __LINE__);    \
-            channel->log(poco_message);                                           \
-        }                                                                         \
-    }                                                                             \
-} while (false)
+#define LOG_IMPL(logger, priority, PRIORITY, ...) \
+    do \
+    { \
+        const bool is_clients_log \
+            = (DB::CurrentThread::getGroup() != nullptr) && (DB::CurrentThread::getGroup()->client_logs_level >= (priority)); \
+        if ((logger)->is((PRIORITY)) || is_clients_log) \
+        { \
+            std::string formatted_message = numArgs(__VA_ARGS__) > 1 ? fmt::format(__VA_ARGS__) : firstArg(__VA_ARGS__); \
+            if (auto channel = (logger)->getChannel()) \
+            { \
+                Poco::Message poco_message((logger)->name(), formatted_message, (PRIORITY), __FILE__, __LINE__); \
+                channel->log(poco_message); \
+            } \
+        } \
+    } while (false)
 
 
 #define LOG_TEST(logger, ...)    LOG_IMPL(logger, DB::LogsLevel::test, Poco::Message::PRIO_TEST, __VA_ARGS__)
