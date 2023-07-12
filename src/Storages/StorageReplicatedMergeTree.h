@@ -96,6 +96,12 @@ public:
     bool supportsReplication() const override { return true; }
     bool supportsDeduplication() const override { return true; }
 
+    Strings getChildrenFromZKWithRetry(String path, int retry_time = 5) const;
+    std::unordered_set<String> getMissingPartsFromZK() const override;
+
+    Strings getChildrenFromZKWithRetry(String path, int retry_time = 5) const;
+    std::unordered_set<String> getMissingPartsFromZK() const override;
+
     Pipe read(
         const Names & column_names,
         const StorageSnapshotPtr & storage_snapshot,
@@ -235,6 +241,25 @@ public:
 
     void lockSharedDataTemporary(const String & part_name, const String & part_id, const DiskPtr & disk) const;
 
+    /// add distribute lock for cubefs
+    inline String getDistributeLockRootPath() const
+    {
+        return fs::path("/distribute_lock") / getStorageID().getFullTableName() / "";
+    }
+
+    inline String getDistributeLockPath(const String & disk_name, const String & part_name) const
+    {
+        String shard_name = "{shard}";
+        shard_name = getContext()->getMacros()->expand(shard_name);
+        String zk_node = "shard_" + shard_name + "_cubefs_" + disk_name + "_part_" + part_name;
+        return fs::path(getDistributeLockRootPath()) / zk_node;
+    }
+
+    DistributeLockGuardPtr getDistributeLockGuard(
+        const String & disk_name,
+        const String & part_name,
+        const String & value) const override;
+
     /// Unlock shared data part in zookeeper
     /// Return true if data unlocked
     /// Return false if data is still used by another node
@@ -287,6 +312,13 @@ public:
 
     /// Check if there are new broken disks and enqueue part recovery tasks.
     void checkBrokenDisks();
+
+    static bool removeSharedDetachedPart(DiskPtr disk, const String & path, const String & part_name, const String & table_uuid,
+        const String & replica_name, const String & zookeeper_path, const ContextPtr & local_context, const zkutil::ZooKeeperPtr & zookeeper);
+
+    bool canUseZeroCopyReplication() const;
+
+    bool needRemoveSharedDataParts() override;
 
 private:
     std::atomic_bool are_restoring_replica {false};

@@ -379,8 +379,12 @@ void DiskLocal::removeRecursive(const String & path)
 void DiskLocal::listFiles(const String & path, std::vector<String> & file_names)
 {
     file_names.clear();
-    for (const auto & entry : fs::directory_iterator(fs::path(disk_path) / path))
-        file_names.emplace_back(entry.path().filename());
+    String dst_path = fs::path(disk_path) / path;
+    if (fs::exists(dst_path) && fs::is_directory(dst_path))
+    {
+        for (const auto & entry : fs::directory_iterator(dst_path))
+            file_names.emplace_back(entry.path().filename());
+    }
 }
 
 void DiskLocal::setLastModified(const String & path, const Poco::Timestamp & timestamp)

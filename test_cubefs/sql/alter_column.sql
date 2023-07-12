@@ -1,0 +1,1 @@
+ALTER TABLE {test_database}.{test_table} {action} COLUMN {column_name} {default_expr};

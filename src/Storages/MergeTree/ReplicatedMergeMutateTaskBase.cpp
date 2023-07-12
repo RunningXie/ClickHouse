@@ -217,6 +217,12 @@ bool ReplicatedMergeMutateTaskBase::executeImpl()
     return false;
 }
 
+bool ReplicatedMergeMutateTaskBase::canFetchFromOthers(const String & part_name)
+{
+    String dummy;
+    (void) storage.findReplicaHavingCoveringPart(part_name, /* active */ false, dummy);
+    return !dummy.empty();
+}
 
 ReplicatedMergeMutateTaskBase::CheckExistingPartResult ReplicatedMergeMutateTaskBase::checkExistingPart()
 {

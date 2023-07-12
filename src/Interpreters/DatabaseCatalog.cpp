@@ -909,9 +909,11 @@ void DatabaseCatalog::dropTableDataTask()
 
 void DatabaseCatalog::dropTableFinally(const TableMarkedAsDropped & table)
 {
+    bool need_remove_shared_data_parts = true;
     if (table.table)
     {
         table.table->drop();
+        need_remove_shared_data_parts = table.table->needRemoveSharedDataParts();
     }
 
     /// Even if table is not loaded, try remove its data from disk.
@@ -919,6 +921,12 @@ void DatabaseCatalog::dropTableFinally(const TableMarkedAsDropped & table)
     fs::path data_path = fs::path(getContext()->getPath()) / "store" / getPathForUUID(table.table_id.uuid);
     if (fs::exists(data_path))
     {
+        String data_path = "store/" + getPathForUUID(table.table_id.uuid);
+        if (disk->supportDataSharing() && !need_remove_shared_data_parts) continue;
+
+        if (disk->isReadOnly() || !disk->exists(data_path))
+            continue;
+
         LOG_INFO(log, "Removing data directory {} of dropped table {}", data_path.string(), table.table_id.getNameForLogs());
         fs::remove_all(data_path);
     }

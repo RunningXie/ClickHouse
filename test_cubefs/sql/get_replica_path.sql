@@ -1,0 +1,1 @@
+select replica_path from system.replicas where table = '{test_table}' and database = '{test_database}';

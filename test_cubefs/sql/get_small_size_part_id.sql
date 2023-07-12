@@ -1,0 +1,1 @@
+select name from system.parts where database='{test_database}' and table='{test_table}' and active order by rows limit 1;

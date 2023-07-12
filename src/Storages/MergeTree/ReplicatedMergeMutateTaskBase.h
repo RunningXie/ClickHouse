@@ -44,6 +44,8 @@ protected:
     /// Will execute a part of inner MergeTask or MutateTask
     virtual bool executeInnerTask() = 0;
 
+    bool canFetchFromOthers(const String & part_name);
+
     /// This is important not to execute the same mutation in parallel
     /// selected_entry is a RAII class, so the time of living must be the same as for the whole task
     ReplicatedMergeTreeQueue::SelectedEntryPtr selected_entry;
@@ -51,6 +53,8 @@ protected:
     MergeList::EntryPtr merge_mutate_entry{nullptr};
     Poco::Logger * log;
     StorageReplicatedMergeTree & storage;
+    DistributeLockGuardPtr distribute_lock_guard;
+
 
 private:
 

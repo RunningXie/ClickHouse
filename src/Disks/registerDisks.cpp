@@ -26,6 +26,8 @@ void registerDiskEncrypted(DiskFactory & factory);
 void registerDiskHDFS(DiskFactory & factory);
 #endif
 
+void registerDiskCubeFS(DiskFactory & factory);
+
 void registerDiskWebServer(DiskFactory & factory);
 
 
@@ -52,7 +54,10 @@ void registerDisks()
     registerDiskHDFS(factory);
 #endif
 
+    registerDiskCubeFS(factory);
     registerDiskWebServer(factory);
+
+    registerDiskCache(factory);
 }
 
 }

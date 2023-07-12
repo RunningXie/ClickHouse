@@ -1,0 +1,1 @@
+select count() from system.mutations where is_done=0 and database='{test_database}' and table='{test_table}';

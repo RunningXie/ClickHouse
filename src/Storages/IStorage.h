@@ -392,6 +392,8 @@ public:
       */
     virtual void drop() {}
 
+    virtual bool needRemoveSharedDataParts() { return true; }
+
     virtual void dropInnerTableIfAny(bool /* no_delay */, ContextPtr /* context */) {}
 
     /** Clear the table data and leave it empty.

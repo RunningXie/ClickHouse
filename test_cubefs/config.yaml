@@ -1,0 +1,13 @@
+cluster:
+    replica1_ip: 10.176.189.12
+    replica2_ip: 10.176.154.37
+    zookeeper: 10.176.180.175:2181,10.176.139.79:2181,10.176.180.176:2181
+    port: 9001
+    user: ck_super_account
+    password: NV8cId6RG64tV6C2
+
+clickhouse:
+    client_path: ../../build/programs/clickhouse-client
+
+tests:
+    sql_path_prefix: ./sql

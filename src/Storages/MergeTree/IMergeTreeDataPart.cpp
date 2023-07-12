@@ -1214,6 +1214,24 @@ void IMergeTreeDataPart::remove() const
         return;
     }
 
+    const String &disk_name = getDataPartStorage().getDiskName();
+    const String &part_name = getDataPartStorage().getPartDirectory();
+    bool should_lock = storage.supportsReplication() && getDataPartStorage().supportDataSharing();
+
+    DistributeLockGuardPtr lock_guard;
+    if (should_lock)
+    {
+        int retry_times = 0;
+        lock_guard = storage.getDistributeLockGuard(disk_name, part_name, "remove");
+        while (!lock_guard)
+        {
+            LOG_INFO(storage.log, "get distribute lock guard for part {} failed, will try it later, current retry times: {}",
+                    part_name, retry_times++);
+            sleep(2);
+            lock_guard = storage.getDistributeLockGuard(disk_name, part_name, "remove");
+        }
+    }
+
     /** Atomic directory removal:
       * - rename directory to temporary name;
       * - remove it recursive.

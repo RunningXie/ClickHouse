@@ -8,6 +8,8 @@
 #include <IO/ReadBufferFromFile.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <Disks/StoragePolicy.h>
+#include <Disks/CubeFS/DistributeLockGuard.h>
 #include <Processors/Merges/Algorithms/Graphite.h>
 #include <Storages/MergeTree/BackgroundJobsAssignee.h>
 #include <Storages/MergeTree/MergeTreeIndices.h>
@@ -220,6 +222,12 @@ public:
     using DataPartsLock = std::unique_lock<std::mutex>;
     DataPartsLock lockParts() const { return DataPartsLock(data_parts_mutex); }
 
+    /// add distribute lock for cubefs
+    virtual DistributeLockGuardPtr getDistributeLockGuard(
+        [[maybe_unused]] const String & disk_name,
+        [[maybe_unused]] const String & part_name,
+        [[maybe_unused]] const String & value) const { return nullptr; }
+
     MergeTreeDataPartType choosePartType(size_t bytes_uncompressed, size_t rows_count) const;
     MergeTreeDataPartType choosePartTypeOnDisk(size_t bytes_uncompressed, size_t rows_count) const;
 
@@ -419,6 +427,10 @@ public:
 
     bool supportsDynamicSubcolumns() const override { return true; }
 
+    bool supportsLightweightDelete() const override;
+
+    virtual std::unordered_set<String> getMissingPartsFromZK() const { return {}; }
+
     NamesAndTypesList getVirtuals() const override;
 
     bool mayBenefitFromIndexForIn(const ASTPtr & left_in_operand, ContextPtr, const StorageMetadataPtr & metadata_snapshot) const override;
@@ -596,7 +608,7 @@ public:
 
     /// After the call to dropAllData() no method can be called.
     /// Deletes the data directory and flushes the uncompressed blocks cache and the marks cache.
-    void dropAllData();
+    void dropAllData(bool include_shared_parts = true);
 
     /// Drop data directories if they are empty. It is safe to call this method if table creation was unsuccessful.
     void dropIfEmpty();

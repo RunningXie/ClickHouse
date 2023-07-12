@@ -127,6 +127,28 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare()
     if (ctx->disk->exists(local_new_part_tmp_path))
         throw Exception("Directory " + fullPath(ctx->disk, local_new_part_tmp_path) + " already exists", ErrorCodes::DIRECTORY_ALREADY_EXISTS);
 
+
+    auto data_part_storage = std::make_shared<DataPartStorageOnDisk>(
+        local_single_disk_volume,
+        global_ctx->data->relative_data_path,
+        local_tmp_part_basename);
+
+    data_part_storage->beginTransaction();
+
+    if (data_part_storage->exists())
+    {
+        if (data_part_storage->supportDataSharing())
+        {
+            LOG_WARNING(ctx->log, "Path {} already exists on data sharing disk {}. Will remove it and clone again.",
+                    data_part_storage->getFullPath(), data_part_storage->getDiskName());
+            ctx->disk->removeRecursive(data_part_storage->getFullPath());
+        }
+        else
+        {
+            throw Exception(ErrorCodes::DIRECTORY_ALREADY_EXISTS, "Directory {} already exists", data_part_storage->getFullPath());
+        }
+    }
+
     global_ctx->data->temporary_parts.add(local_tmp_part_basename);
     SCOPE_EXIT(
         global_ctx->data->temporary_parts.remove(local_tmp_part_basename);

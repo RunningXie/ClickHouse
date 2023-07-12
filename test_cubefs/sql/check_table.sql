@@ -1,0 +1,1 @@
+CHECK TABLE {test_database}.{test_table};
