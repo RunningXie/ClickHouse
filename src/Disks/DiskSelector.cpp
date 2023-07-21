@@ -44,7 +44,12 @@ DiskSelector::DiskSelector(const Poco::Util::AbstractConfiguration & config, con
         disks.emplace(
             default_disk_name,
             std::make_shared<DiskLocal>(
-                default_disk_name, context->getPath(), 0, context, config.getUInt("local_disk_check_period_ms", 0)));
+                default_disk_name,
+                context->getPath(),
+                context->getSettingsRef().handle_remove_error_path,
+                0,
+                context,
+                config.getUInt("local_disk_check_period_ms", 0)));
     }
 }
 
