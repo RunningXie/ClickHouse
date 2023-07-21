@@ -15,8 +15,8 @@ std::shared_ptr<DiskCacheWrapper> wrapWithCache(
 {
     if (metadata_path == cache_path)
         throw Exception("Metadata and cache paths should be different: " + metadata_path, ErrorCodes::BAD_ARGUMENTS);
-
-    auto cache_disk = std::make_shared<DiskLocal>(cache_name, cache_path, 0);
+    //cache_disk must be local disk
+    auto cache_disk = std::make_shared<DiskLocal>(cache_name, cache_path, "", 0);
     auto cache_file_predicate = [] (const String & path)
     {
         return path.ends_with("idx") // index files.
@@ -45,7 +45,8 @@ std::pair<String, DiskPtr> prepareForLocalMetadata(
     /// where the metadata files are stored locally
     auto metadata_path = getDiskMetadataPath(name, config, config_prefix, context);
     fs::create_directories(metadata_path);
-    auto metadata_disk = std::make_shared<DiskLocal>(name + "-metadata", metadata_path, 0);
+    auto metadata_disk
+        = std::make_shared<DiskLocal>(name + "-metadata", metadata_path, context->getSettingsRef().handle_remove_error_path, 0);
     return std::make_pair(metadata_path, metadata_disk);
 }
 

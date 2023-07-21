@@ -20,10 +20,11 @@ public:
     friend class DiskLocalCheckThread;
     friend class DiskLocalReservation;
 
-    DiskLocal(const String & name_, const String & path_, UInt64 keep_free_space_bytes_);
+    DiskLocal(const String & name_, const String & path_, const String & handle_remove_error_path, UInt64 keep_free_space_bytes_);
     DiskLocal(
         const String & name_,
         const String & path_,
+        const String & handle_remove_error_path,
         UInt64 keep_free_space_bytes_,
         ContextPtr context,
         UInt64 local_disk_check_period_ms);
@@ -128,10 +129,13 @@ private:
 
     /// Read magic number from disk checker file. Return std::nullopt if exception happens.
     std::optional<UInt32> readDiskCheckerMagicNumber() const noexcept;
+    void remove_all_for_test(const String & path);
+    void moveFiles(const fs::path & source_dir, const fs::path & target_dir);
 
     const String name;
     const String disk_path;
     const String disk_checker_path = ".disk_checker_file";
+    const String handle_remove_error_path;
     std::atomic<UInt64> keep_free_space_bytes;
     Poco::Logger * logger;
 

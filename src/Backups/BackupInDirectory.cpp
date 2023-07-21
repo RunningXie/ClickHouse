@@ -67,7 +67,7 @@ BackupInDirectory::BackupInDirectory(
         path = fspath.filename() / "";
         dir_path = fs::path(path).parent_path(); /// get path without terminating slash
         String disk_path = fspath.remove_filename();
-        disk = std::make_shared<DiskLocal>(disk_path, disk_path, 0);
+        disk = std::make_shared<DiskLocal>(disk_path, disk_path, context_->getSettingsRef().handle_remove_error_path, 0);
     }
 
     open();
