@@ -1,8 +1,9 @@
-#include "gtest_disk.h"
-#include <filesystem>
+#include <gtest/gtest.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
-#include <gtest/gtest.h>
+#include "gtest_disk.h"
+#include <filesystem>
+
 namespace fs = std::filesystem;
 
 
@@ -25,7 +26,7 @@ template <>
 DB::DiskPtr createDisk<DB::DiskLocal>()
 {
     fs::create_directory("tmp/");
-    return std::make_shared<DB::DiskLocal>("local_disk", "tmp/", "", 0);
+    return std::make_shared<DB::DiskLocal>("local_disk", "tmp/", 0);
 }
 
 
