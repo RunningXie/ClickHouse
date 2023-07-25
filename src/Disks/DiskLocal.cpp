@@ -89,8 +89,7 @@ static void loadDiskLocalConfig(const String & name,
             tmp_path = context->getPath();
 
         // Create tmp disk for getting total disk space.
-        keep_free_space_bytes = static_cast<UInt64>(
-            DiskLocal("tmp", tmp_path, context->getSettingsRef().handle_remove_error_path, 0).getTotalSpace() * ratio);
+        keep_free_space_bytes = static_cast<UInt64>(DiskLocal("tmp", tmp_path, 0).getTotalSpace() * ratio);
     }
 }
 
@@ -391,22 +390,21 @@ void DiskLocal::remove_all_for_test(const String & path)
     fs::remove_all(path);
 }
 
-void DiskLocal::moveFiles(const fs::path & source_dir, const fs::path & target_dir)
+void DiskLocal::renameFiles(const fs::path & source_dir, const fs::path & target_dir)
 {
-    fs::path relative_target_path = target_dir / fs::relative(source_dir, disk_path);
-    if (!fs::exists(relative_target_path.parent_path()))
+    if (!fs::exists(target_dir.parent_path()))
     {
-        fs::create_directories(relative_target_path.parent_path());
+        fs::create_directories(target_dir.parent_path());
     }
-    LOG_DEBUG(log, "move files from {} to {}", source_dir.string(), relative_target_path.string());
-    fs::rename(source_dir, relative_target_path);
+    LOG_DEBUG(log, "move files from {} to {}", source_dir.string(), target_dir.string());
+    fs::rename(source_dir, target_dir);
 }
 
 void DiskLocal::removeRecursive(const String & path)
 {
     try
     {
-        fs::remove_all((fs::path(disk_path) / path).string());
+        fs::remove_all(fs::path(disk_path) / path);
     }
     catch (const fs::filesystem_error & e)
     {
@@ -418,7 +416,8 @@ void DiskLocal::removeRecursive(const String & path)
                 e.what(),
                 disk_path,
                 (fs::path(disk_path) / path).string());
-            moveFiles(e.path1(), fs::path(handle_remove_error_path));
+            fs::path to_path = fs::path(handle_remove_error_path) / fs::relative(e.path1(), disk_path);
+            renameFiles(e.path1(), to_path);
             if (fs::exists(fs::path(disk_path) / path))
             {
                 removeRecursive(path);
@@ -516,26 +515,19 @@ void DiskLocal::applyNewSettings(const Poco::Util::AbstractConfiguration & confi
         keep_free_space_bytes = new_keep_free_space_bytes;
 }
 
-DiskLocal::DiskLocal(const String & name_, const String & path_, const String & handle_remove_error_path_, UInt64 keep_free_space_bytes_)
-    : name(name_)
-    , disk_path(path_)
-    , handle_remove_error_path(handle_remove_error_path_)
-    , keep_free_space_bytes(keep_free_space_bytes_)
-    , logger(&Poco::Logger::get("DiskLocal"))
+DiskLocal::DiskLocal(const String & name_, const String & path_, UInt64 keep_free_space_bytes_)
+    : name(name_), disk_path(path_), keep_free_space_bytes(keep_free_space_bytes_), logger(&Poco::Logger::get("DiskLocal"))
 {
 }
 
 DiskLocal::DiskLocal(
-    const String & name_,
-    const String & path_,
-    const String & handle_remove_error_path_,
-    UInt64 keep_free_space_bytes_,
-    ContextPtr context,
-    UInt64 local_disk_check_period_ms)
-    : DiskLocal(name_, path_, handle_remove_error_path_, keep_free_space_bytes_)
+    const String & name_, const String & path_, UInt64 keep_free_space_bytes_, ContextPtr context, UInt64 local_disk_check_period_ms)
+    : DiskLocal(name_, path_, keep_free_space_bytes_)
 {
     if (local_disk_check_period_ms > 0)
         disk_checker = std::make_unique<DiskLocalCheckThread>(this, context, local_disk_check_period_ms);
+    const auto & settings = context->getSettingsRef();
+    handle_remove_error_path = String(settings.handle_remove_error_path);
 }
 
 void DiskLocal::startup()
@@ -724,19 +716,13 @@ void registerDiskLocal(DiskFactory & factory)
             if (path == disk_ptr->getPath())
                 throw Exception(ErrorCodes::BAD_ARGUMENTS, "Disk {} and disk {} cannot have the same path ({})", name, disk_name, path);
 
-        const Settings & current_settings = context->getSettingsRef();
-        std::shared_ptr<IDisk> disk = std::make_shared<DiskLocal>(
-            name,
-            path,
-            current_settings.handle_remove_error_path,
-            keep_free_space_bytes,
-            context,
-            config.getUInt("local_disk_check_period_ms", 0));
+        std::shared_ptr<IDisk> disk
+            = std::make_shared<DiskLocal>(name, path, keep_free_space_bytes, context, config.getUInt("local_disk_check_period_ms", 0));
         LOG_DEBUG(
             &Poco::Logger::get("DiskLocal"),
             "register local disk, name: {}, handle remove error path: {}",
             name,
-            String(current_settings.handle_remove_error_path));
+            String(context->getSettingsRef().handle_remove_error_path));
         disk->startup();
         return std::make_shared<DiskRestartProxy>(disk);
     };
