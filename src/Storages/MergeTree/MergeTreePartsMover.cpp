@@ -1,6 +1,5 @@
 #include <Storages/MergeTree/MergeTreePartsMover.h>
 #include <Storages/MergeTree/MergeTreeData.h>
-#include <Storages/MergeTree/DataPartStorageOnDisk.h>
 
 #include <set>
 #include <boost/algorithm/string/join.hpp>
@@ -132,10 +131,7 @@ bool MergeTreePartsMover::selectPartsForMove(
         String reason;
         /// Don't report message to log, because logging is excessive.
         if (!can_move(part, &reason))
-        {
-            LOG_DEBUG(log, "Cannot move part {}, reason: {}", part->name, reason);
             continue;
-        }
         auto ttl_entry = selectTTLDescriptionForTTLInfos(metadata_snapshot->getMoveTTLs(), part->ttl_infos.moves_ttl, time_of_move, true);
 
         auto to_insert = need_to_move.find(part->volume->getDisk());
@@ -200,32 +196,25 @@ void MergeTreePartsMover::movePart(const MergeTreeMoveEntry & moving_part) const
 {
     auto part = moving_part.part;
     auto disk = moving_part.reserved_space->getDisk();
-    if (disk->supportDataSharing() )
+    String relative_part_path = fs::path(data->getRelativeDataPath()) / part->name;
+    if (disk->supportDataSharing())
     {
-        // data->lockSharedDataTemporary(part->name, part->name, disk);
-        auto single_disk_volume = std::make_shared<SingleDiskVolume>("volume_" + part->name, disk, 0);
-        auto data_part_storage = std::make_shared<DataPartStorageOnDisk>(single_disk_volume, data->getRelativeDataPath(), part->name);
-        if (data_part_storage->exists())
+        if (disk->exists(relative_part_path))
         {
-            LOG_TRACE(log, "Shared part {} was existed in path {}", part->name, data_part_storage->getFullPath());
-
-            MergeTreeData::MutableDataPartPtr cloned_part = data->createPart(part->name, data_part_storage);
-            cloned_part->loadColumnsChecksumsIndexes(true, true);
-            cloned_part->modification_time = cloned_part->getDataPartStorage().getLastModified().epochTime();
-            cloned_part->version.setCreationTID(Tx::PrehistoricTID, nullptr);
-            data->swapActivePart(cloned_part);
+            LOG_TRACE(log, "Shared part {} was existed in path {}", part->name, relative_part_path);
+            auto res = data->loadDataPart(part->info, part->name, disk);
+            data->swapActivePart(res.part);
         }
         else
         {
-            LOG_TRACE(log, "Shared part {} was not existed in path {}", part->name, data_part_storage->getFullPath());
-            MergeTreeMutableDataPartPtr cloned_part = clonePart(moving_part);
+            LOG_TRACE(log, "Shared part {} was not existed in path {}", part->name, relative_part_path);
+            MergeTreeData::DataPartPtr cloned_part = clonePart(moving_part);
             swapClonedPart(cloned_part);
         }
-    //    data->unlockSharedData(*part);
     }
     else
     {
-        MergeTreeMutableDataPartPtr cloned_part = clonePart(moving_part);
+        auto cloned_part = clonePart(moving_part);
         swapClonedPart(cloned_part);
     }
 }
@@ -263,11 +252,11 @@ MergeTreeData::DataPartPtr MergeTreePartsMover::clonePart(const MergeTreeMoveEnt
         if (disk->supportDataSharing())
         {
             moving_part.part->assertOnDisk();
-            String path_to_clone = fs::path(data->getRelativeDataPath()) / MergeTreeData::MOVING_DIR_NAME / "";
-            String relative_path = part->getDataPartStorage().getPartDirectory();
+            String path_to_clone = fs::path(data->getRelativeDataPath()) / directory_to_move / "";
+            String relative_path = part->relative_path;
             if (disk->exists(path_to_clone + relative_path))
             {
-                LOG_WARNING(log, "Path {} already exists on data sharing disk {}. Will remove it and clone again.",
+                LOG_INFO(log, "Path {} already exists on data sharing disk {}. Will remove it and clone again.",
                         fullPath(disk, path_to_clone + relative_path), disk->getName());
                 disk->removeRecursive(fs::path(path_to_clone) / relative_path / "");
             }

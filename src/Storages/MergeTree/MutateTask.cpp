@@ -1357,12 +1357,15 @@ bool MutateTask::prepare()
         task = std::make_unique<MutateSomePartColumnsTask>(ctx);
     }
 
-    if (data_part_storage->supportDataSharing() && data_part_storage->exists())
+    auto disk = ctx->space_reservation->getDisk();
+    String tmp_part_dir_name = "tmp_mut_" + ctx->future_part->name;
+    String tmp_mutate_path = fs::path(ctx->data->getRelativeDataPath())/tmp_part_dir_name;
+    if (disk->supportDataSharing() && disk->exists(tmp_mutate_path))
     {
         {
             LOG_WARNING(ctx->log, "Path {} already exists on data sharing disk {}. Will remove it and clone again.", 
-                    data_part_storage->getFullPath(), data_part_storage->getDiskName());
-            data_part_storage->removeRecursive();
+                    tmp_mutate_path, disk->getName());
+            disk->removeRecursive(tmp_mutate_path);
         }
     }
 

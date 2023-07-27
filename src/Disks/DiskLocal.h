@@ -119,7 +119,7 @@ public:
     bool canRead() const noexcept;
     bool canWrite() const noexcept;
 
-private:
+protected:
     bool tryReserve(UInt64 bytes);
 
     /// Setup disk for healthy check. Returns true if it's read-write, false if read-only.

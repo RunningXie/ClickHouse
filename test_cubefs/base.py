@@ -94,7 +94,7 @@ class Base():
 		self.disconnect()
 
 	def log(self, msg):
-		cur_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
+		cur_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 		print("%s %s"%(cur_time, msg))
 
 	def executeQuery(self, client, query):
@@ -108,7 +108,7 @@ class Base():
 	def __executeSQLFile(self, client, file_name, rent_dict={}):
 		# common param to rent
 		file_path = os.path.join('%s/%s' % (self.sql_path_prefix, file_name))
-		return self().executeSQLFile(client, file_path, rent_dict)
+		return self.executeSQLFile(client, file_path, rent_dict)
 
 	def executeSQLFile(self, client, file_name, rent_dict={}):
 		# common param to rent

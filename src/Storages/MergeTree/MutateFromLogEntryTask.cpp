@@ -117,13 +117,13 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MutateFromLogEntry
         distribute_lock_guard = storage.getDistributeLockGuard(disk->getName(), entry.new_part_name, "mutation");
         if (!distribute_lock_guard)
         {
-            LOG_DEBUG(log, "Merge of part {} started by some other replica, will wait it and fetch merged part", entry.new_part_name);
+            LOG_DEBUG(log, "Mutation lock of part {} is hold by the other, will wait it and fetch it later", entry.new_part_name);
             return {false, {}};
         }
 
-        if (canFetchFromOthers(entry.new_part_name))
+        if (!storage.findReplicaHavingCoveringPart(entry, true).empty())
         {
-            LOG_DEBUG(log, "Mutation of part {} started by some other replica, will wait and fetch it", entry.new_part_name);
+            LOG_DEBUG(log, "Mutation of part {} is finished by the other, fetch it instead", entry.new_part_name);
             distribute_lock_guard->unlock();
             return {false, {}};
         }
@@ -179,7 +179,6 @@ bool MutateFromLogEntryTask::finalize(ReplicatedMergeMutateTaskBase::PartLogWrit
             LOG_ERROR(log, "{}. Data after mutation is not byte-identical to data on another replicas. We will download merged part from replica to force byte-identical result.", getCurrentExceptionMessage(false));
 
             write_part_log(ExecutionStatus::fromCurrentException());
-
             if (storage.getSettings()->detach_not_byte_identical_parts)
                 storage.forgetPartAndMoveToDetached(std::move(new_part), "mutate-not-byte-identical");
             else

@@ -427,8 +427,6 @@ public:
 
     bool supportsDynamicSubcolumns() const override { return true; }
 
-    bool supportsLightweightDelete() const override;
-
     virtual std::unordered_set<String> getMissingPartsFromZK() const { return {}; }
 
     NamesAndTypesList getVirtuals() const override;
@@ -847,7 +845,7 @@ public:
     WriteAheadLogPtr getWriteAheadLog();
 
     MergeTreeDataFormatVersion format_version;
-
+    std::mutex part_loading_mutex;
     /// Merging params - what additional actions to perform during merge.
     const MergingParams merging_params;
 
@@ -938,6 +936,21 @@ public:
     /// Store metadata for replicated tables
     /// Do nothing for non-replicated tables
     virtual void createAndStoreFreezeMetadata(DiskPtr disk, DataPartPtr part, String backup_part_path) const;
+
+
+    struct LoadPartResult
+    {
+        bool is_broken = false;
+        std::optional<size_t> size_of_part;
+        MutableDataPartPtr part;
+    };
+
+    LoadPartResult loadDataPart(
+        const MergeTreePartInfo & part_info,
+        const String & part_name,
+        const DiskPtr & part_disk_ptr);
+
+
 
     /// Parts that currently submerging (merging to bigger parts) or emerging
     /// (to be appeared after merging finished). These two variables have to be used
@@ -1178,7 +1191,6 @@ protected:
     virtual MutationCommands getFirstAlterMutationCommandsForPart(const DataPartPtr & part) const = 0;
     /// Moves part to specified space, used in ALTER ... MOVE ... queries
     bool movePartsToSpace(const DataPartsVector & parts, SpacePtr space);
-
 
 private:
     /// RAII Wrapper for atomic work with currently moving parts

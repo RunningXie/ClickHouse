@@ -368,18 +368,19 @@ StorageReplicatedMergeTree::StorageReplicatedMergeTree(
     }
 
     has_metadata_in_zookeeper = true;
-
-    for auto part : getDataParts())
+    if (!attach)
     {
-        if (part->getDataPartStorage().supportDataSharing()) { continue; }
-        throw Exception(ErrorCodes::INCORRECT_DATA,
-                        "Data directory for table already contains data parts - probably it was unclean DROP table "
-                        "or manual intervention. You must either clear directory by hand "
-                        "or use ATTACH TABLE instead of CREATE TABLE if you need to use that parts.");
-    }
-    try
-    {
-        bool is_first_replica = createTableIfNotExists(metadata_snapshot);
+        for (auto part : getDataParts())
+        {
+            if (part->volume->getDisk()->supportDataSharing()) { continue; }
+            throw Exception(ErrorCodes::INCORRECT_DATA,
+                    "Data directory for table already contains data parts - probably it was unclean DROP table "
+                    "or manual intervention. You must either clear directory by hand "
+                    "or use ATTACH TABLE instead of CREATE TABLE if you need to use that parts.");
+        }
+        try
+        {
+            bool is_first_replica = createTableIfNotExists(metadata_snapshot);
 
             try
             {
@@ -593,14 +594,6 @@ void StorageReplicatedMergeTree::createNewZooKeeperNodes()
         zookeeper->createIfNotExists(zookeeper_path + "/zero_copy_hdfs", String());
         zookeeper->createIfNotExists(zookeeper_path + "/zero_copy_hdfs/shared", String());
     }
-
-    /// for cubefs distribute lock
-    // const String distribute_root_path = getDistributeLockRootPath();
-    // if (!zookeeper->exists("/distribute_lock"))
-    // {
-    //     futures.push_back(zookeeper->asyncTryCreateNoThrow("/distribute_lock", String(), zkutil::CreateMode::Persistent));
-    // }
-    // futures.push_back(zookeeper->asyncTryCreateNoThrow(distribute_root_path, String(), zkutil::CreateMode::Persistent));
 
     /// Part movement.
     zookeeper->createIfNotExists(zookeeper_path + "/part_moves_shard", String());
@@ -820,13 +813,14 @@ void StorageReplicatedMergeTree::drop()
 
 bool StorageReplicatedMergeTree::needRemoveSharedDataParts()
 {
-    zkutil::ZooKeeperPtr zookeeper = getZooKeeperIfTableShutDown();
+    zkutil::ZooKeeperPtr zookeeper = getZooKeeper();
 
     if (!zookeeper)
         throw Exception(ErrorCodes::TABLE_IS_READ_ONLY, "Can't drop replicated table (need to drop data in ZooKeeper as well)");
 
     if (zookeeper->expired())
         throw Exception(ErrorCodes::TABLE_WAS_NOT_DROPPED, "Table was not dropped because ZooKeeper session has expired.");
+
     Strings replicas;
     static const int ZK_MAX_RETRY_COUNT = 5;
     int retry = 0;
@@ -848,7 +842,8 @@ bool StorageReplicatedMergeTree::needRemoveSharedDataParts()
         }
         LOG_INFO(log, "Get children from zk path {} failed, exception {}", root_path, error);
     }
-    LOG_INFO(log, "Get children from zk path {} failed, do not remove shared data. Please remove it manually", root_path);
+
+    LOG_INFO(log, "Get children of zk path {} failed, will not remove shared data. Please remove it manually", root_path);
     return false;
 }
 
@@ -3830,42 +3825,33 @@ bool StorageReplicatedMergeTree::fetchPart(const String & part_name, const Stora
     if (!existed_part)
     {
         auto disks = getDisks();
-        String part_relative_path = getRelativeDataPath();
+        String part_relative_path = fs::path(getRelativeDataPath()) / part_name;
         for (auto disk : disks)
         {
-            auto volume = std::make_shared<SingleDiskVolume>("volume_" + part_name, disk);
-            auto data_part_storage = std::make_shared<DataPartStorageOnDisk>(
-                volume,
-                part_relative_path,
-                part_name);
-        //    data_part_storage->beginTransaction();
-
-            if (disk->supportDataSharing() && data_part_storage->exists())
+            if (disk->supportDataSharing() && disk->exists(part_relative_path))
             {
                 auto lock_guard = getDistributeLockGuard(disk->getName(), part_name, "fetch(loading)");
                 if (!lock_guard)
                 {
-                    LOG_DEBUG(log, "Part {} on disk {} alreadly locked by others, retry fetching later.", part_name, disk->getName());
+                    LOG_DEBUG(log, "Part {} on disk {} is locked by others, fetch it later.", part_name, disk->getName());
                     return false;
                 }
-                LOG_DEBUG(log, "Part {} alreadly exists in data sharing disk {}, path {}, so add it into memory.",
-                    part_name, data_part_storage->getDiskName(), data_part_storage->getFullPath());
+                LOG_DEBUG(log, "Part {} is alreadly existed in data sharing disk {}, path {}, add it into memory.",
+                    part_name, disk->getName(), part_relative_path);
 
-                std::mutex part_loading_mutex;
-                auto res = loadDataPart(part_info, part_name, disk, DataPartState::PreActive, part_loading_mutex);
+                auto res = loadDataPart(part_info, part_name, disk);
                 if (res.is_broken || res.part->is_duplicate)
                 {
+                    lock_guard->unlock();
+                    LOG_DEBUG(log, "Part {} in disk {} is broken or duplicated, remove it." ,part_name, disk->getName());
                     res.part->remove();
-                    LOG_DEBUG(log, "Part {} alreadly existed in disk {} is broken or duplicated, try fetch later.",
-                        part_name, data_part_storage->getDiskName());
                     return false;
                 }
 
                 MergeTreeData::MutableDataPartPtr fetched_part = res.part;
                 LOG_DEBUG(log, "Not fetching part: {}, part alreadly exists in data sharing disk {}",
-                        fetched_part->name, fetched_part->getDataPartStorage().getDiskName());
-                Transaction transaction(*this, NO_TRANSACTION_RAW);
-                preparePartForCommit(fetched_part, transaction, false);
+                        fetched_part->name, disk->getName());
+                Transaction transaction(*this);
                 replaced_parts = checkPartChecksumsAndCommit(transaction, fetched_part);
                 for (const auto & replaced_part : replaced_parts)
                 {
@@ -3873,7 +3859,7 @@ bool StorageReplicatedMergeTree::fetchPart(const String & part_name, const Stora
                     ProfileEvents::increment(ProfileEvents::ObsoleteReplicatedParts);
                 }
                 LOG_DEBUG(log, "Loaded part {} from data sharing disk {}, path {}", part_name,
-                        disk->getName(), data_part_storage->getFullPath());
+                        disk->getName(), part_relative_path);
                 write_part_log({});
                 return true;
             }
@@ -3881,8 +3867,8 @@ bool StorageReplicatedMergeTree::fetchPart(const String & part_name, const Stora
     }
     else
     {
-        LOG_DEBUG(log, "Part {} alreadly exists in data sharing disk {}, path {}. Do nothing.",
-            part_name, existed_part->getDataPartStorage().getDiskName(), existed_part->getDataPartStorage().getFullPath());
+        LOG_DEBUG(log, "Part {} is alreadly loaded in data sharing disk {}, path {}. Do nothing.",
+            part_name, existed_part->volume->getDisk()->getName(), existed_part->getFullPath());
         return true;
     }
 
@@ -7299,7 +7285,7 @@ void StorageReplicatedMergeTree::lockSharedDataTemporary(const String & part_nam
 
     for (const auto & zc_zookeeper_path : zc_zookeeper_paths)
     {
-        String zk_node_path = fs::path(zc_zookeeper_path) / id / replica_name;
+        String zookeeper_node = fs::path(zc_zookeeper_path) / id / replica_name;
 
         LOG_TRACE(log, "Set zookeeper temporary ephemeral lock {}", zookeeper_node);
         createZeroCopyLockNode(zookeeper, zookeeper_node, zkutil::CreateMode::Ephemeral, false);
@@ -7326,9 +7312,9 @@ void StorageReplicatedMergeTree::lockSharedData(const IMergeTreeDataPart & part,
         part.name, zookeeper_path);
     for (const auto & zc_zookeeper_path : zc_zookeeper_paths)
     {
-        String zk_node_path = fs::path(zc_zookeeper_path) / id / replica_name;
+        String zookeeper_node = fs::path(zc_zookeeper_path) / id / replica_name;
 
-        LOG_TRACE(log, "Set zookeeper persistent lock {}", zk_node_path);
+        LOG_TRACE(log, "Set zookeeper persistent lock {}", zookeeper_node);
 
         createZeroCopyLockNode(zookeeper, zookeeper_node, zkutil::CreateMode::Persistent, replace_existing_lock);
     }
@@ -7574,7 +7560,7 @@ std::optional<String> StorageReplicatedMergeTree::getZeroCopyPartPath(const Stri
 
 std::optional<ZeroCopyLock> StorageReplicatedMergeTree::tryCreateZeroCopyExclusiveLock(const String & part_name, const DiskPtr & disk)
 {
-    if (!disk || !disk->supportZeroCopyReplication() || !disk->supportZeroCopyReplication())
+    if (!disk || !disk->supportZeroCopyReplication())
         return std::nullopt;
 
     zkutil::ZooKeeperPtr zookeeper = tryGetZooKeeper();
@@ -7834,37 +7820,10 @@ DistributeLockGuardPtr StorageReplicatedMergeTree::getDistributeLockGuard(
         zookeeper = getContext()->getZooKeeper();
     }
 
+    String hostname = getContext()->getInterserverIOAddress().first;
     String zk_node_path = getDistributeLockPath(disk_name, part_name);
     DistributeLockGuardPtr lock_guard = std::make_shared<DistributeLockGuard>(zookeeper, zk_node_path);
-    if (!lock_guard->tryLock(value))
-    {
-        return nullptr;
-    }
-    LOG_DEBUG(log, "Create distribute lock for part {} on disk {} for {}", part_name, disk_name, value);
-    return lock_guard;
-}
-
-
-
-DistributeLockGuardPtr StorageReplicatedMergeTree::getDistributeLockGuard(
-    const String & disk_name,
-    const String & part_name,
-    const String & value) const
-{
-    zkutil::ZooKeeperPtr zookeeper = tryGetZooKeeper();
-    if (!zookeeper)
-    {
-        LOG_WARNING(log, "Cannot create distribute lock for part {} on disk {} guard without zookeeper", part_name, disk_name);
-        return nullptr;
-    }
-    if (zookeeper->expired())
-    {
-        zookeeper = getContext()->getZooKeeper();
-    }
-
-    String zk_node_path = getDistributeLockPath(disk_name, part_name);
-    DistributeLockGuardPtr lock_guard = std::make_shared<DistributeLockGuard>(zookeeper, zk_node_path);
-    if (!lock_guard->tryLock(value))
+    if (!lock_guard->tryLock(value, hostname))
     {
         return nullptr;
     }

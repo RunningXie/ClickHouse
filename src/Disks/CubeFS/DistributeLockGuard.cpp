@@ -1,12 +1,14 @@
 #include <filesystem>
 #include <Disks/CubeFS/DistributeLockGuard.h>
-#include <Common/logger_useful.h>
+#include <base/logger_useful.h>
+#include <Common/ZooKeeper/KeeperException.h>
 
 
 namespace DB
 {
 
 namespace fs = std::filesystem;
+const String DistributeLockGuard::owner_tag = "__[host]__";
 
 DistributeLockGuard::DistributeLockGuard(const zkutil::ZooKeeperPtr & zk, const String & zk_path)
     : zookeeper(zk), lock_path(zk_path), locked(false), log(&Poco::Logger::get("CubeFS:DistributeLockGuard"))
@@ -19,11 +21,11 @@ DistributeLockGuard::~DistributeLockGuard()
     unlock();
 }
 
-bool DistributeLockGuard::tryLock(const String & value)
+bool DistributeLockGuard::tryLock(const String & value, const String & owner)
 {
     if (locked)
         return true;
-    locked = tryCreateDistributeLock(value);
+    locked = tryCreateDistributeLock(value, owner);
     return locked;
 }
 
@@ -33,7 +35,15 @@ void DistributeLockGuard::unlock()
         locked = !releaseDistributeLock();
 }
 
-bool DistributeLockGuard::tryCreateDistributeLock(const String & value) const
+String DistributeLockGuard::getLockOwner(String node_value) const
+{
+    auto n = node_value.rfind(owner_tag);
+    if (n == std::string::npos)
+        return "";
+    return node_value.substr(n + owner_tag.length());
+}
+
+bool DistributeLockGuard::tryCreateDistributeLock(const String & value, const String & owner) const
 {
     /// In rare case other replica can remove path between createAncestors and createIfNotExists
     /// So we make up to 5 attempts
@@ -44,11 +54,12 @@ bool DistributeLockGuard::tryCreateDistributeLock(const String & value) const
     }
 
     int attempts = 2;
+    String node_value = value + owner_tag + owner;
     while (attempts > 0)
     {
         try
         {
-            auto code = zookeeper->tryCreate(lock_path, value, zkutil::CreateMode::Ephemeral);
+            auto code = zookeeper->tryCreate(lock_path, node_value, zkutil::CreateMode::Ephemeral);
             if (code == Coordination::Error::ZOK)
             {
                 LOG_TRACE(log, "Create lock for znode {}", lock_path);
@@ -56,6 +67,12 @@ bool DistributeLockGuard::tryCreateDistributeLock(const String & value) const
             }
             else if (code == Coordination::Error::ZNODEEXISTS)
             {
+                String cur_node_value = zookeeper->get(lock_path);
+                String cur_owner = getLockOwner(cur_node_value);
+                if (0 == cur_owner.compare(owner))
+                {
+                    return true;
+                }
                 LOG_INFO(log, "Cannot create lock for znode {} because lock was locked by others", lock_path);
                 return false;
             }

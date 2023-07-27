@@ -9,4 +9,4 @@ ENGINE = ReplicatedMergeTree('/tables/default/{test_database}.{test_table}', '{r
 PARTITION BY appName
 ORDER BY timestamp
 TTL toDateTime(toUnixTimestamp(timestamp)) + toIntervalSecond({table_ttl_second}) TO VOLUME 'cold'
-SETTINGS storage_policy = 'hot_cold_separation', replicated_deduplication_window=0;
+SETTINGS storage_policy = 'hot_cold_separation', replicated_deduplication_window=0, remove_empty_parts=false;

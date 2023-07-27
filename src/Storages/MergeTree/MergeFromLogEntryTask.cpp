@@ -182,22 +182,14 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MergeFromLogEntryT
         if (!distribute_lock_guard)
         {
             LOG_DEBUG(log, "Merge of part {} started by some other replica, will wait it and fetch merged part", entry.new_part_name);
-            return PrepareResult {
-                .prepared_successfully = false,
-                .need_to_check_missing_part_in_fetch = false,
-                .part_log_writer = {}
-            };
+            return {false, {}};
         }
 
         if (canFetchFromOthers(entry.new_part_name))
         {
             LOG_DEBUG(log, "Merge of part {} started by some other replica, will wait it and fetch merged part", entry.new_part_name);
             distribute_lock_guard->unlock();
-            return PrepareResult {
-                .prepared_successfully = false,
-                .need_to_check_missing_part_in_fetch = false,
-                .part_log_writer = {}
-            };
+            return {false, {}};
         }
     }
 

@@ -134,7 +134,7 @@ class Test_cubefs_for_update_partiton(base.Base):
 		super().start_move(super().client2())
 
 	def teardown_method(self):
-		#input('press any key to continue')
+		# input('press any key to continue')
 		super().drop_table_if_exist(super().client1())
 		super().drop_table_if_exist(super().client2())
 		super().uninit()
@@ -151,6 +151,7 @@ class Test_cubefs_for_update_partiton(base.Base):
 		assert super().get_record_count(super().client1(), "name!='test1000'") == 1
 		assert super().get_record_count(super().client2(), "name!='test1000'") == 1
 
+		# input('press any key to continue')
 		super().delete_partition(super().client1(), partition_id, "value=2")
 		assert super().get_record_count(super().client1(), "value=2") == 0
 		assert super().get_record_count(super().client2(), "value=2") == 0
@@ -208,4 +209,4 @@ class Test_cubefs_for_add_column(base.Base):
 
 if __name__=="__main__":
 	pytest.main(['-v', '-n8' , '--dist=loadscope', 'test_cubefs_for_mutation.py'])
-#	pytest.main(['-s' , 'test_cubefs_for_mutation.py'])
+	# pytest.main(['-s' , 'test_cubefs_for_mutation.py'])

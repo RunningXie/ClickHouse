@@ -1214,21 +1214,20 @@ void IMergeTreeDataPart::remove() const
         return;
     }
 
-    const String &disk_name = getDataPartStorage().getDiskName();
-    const String &part_name = getDataPartStorage().getPartDirectory();
-    bool should_lock = storage.supportsReplication() && getDataPartStorage().supportDataSharing();
+    const String &disk_name = volume->getDisk()->getName();
+    bool should_lock = storage.supportsReplication() && volume->getDisk()->supportDataSharing();
 
     DistributeLockGuardPtr lock_guard;
     if (should_lock)
     {
         int retry_times = 0;
-        lock_guard = storage.getDistributeLockGuard(disk_name, part_name, "remove");
+        lock_guard = storage.getDistributeLockGuard(disk_name, name, "remove");
         while (!lock_guard)
         {
             LOG_INFO(storage.log, "get distribute lock guard for part {} failed, will try it later, current retry times: {}",
-                    part_name, retry_times++);
+                    name, retry_times++);
             sleep(2);
-            lock_guard = storage.getDistributeLockGuard(disk_name, part_name, "remove");
+            lock_guard = storage.getDistributeLockGuard(disk_name, name, "remove");
         }
     }
 
@@ -1274,7 +1273,7 @@ void IMergeTreeDataPart::remove() const
     {
         if (e.code() == std::errc::no_such_file_or_directory)
         {
-            LOG_ERROR(storage.log, "Directory {} (part to remove) doesn't exist or one of nested files has gone. Most likely this is due to manual removing. This should be discouraged. Ignoring.", fullPath(disk, to));
+            LOG_ERROR(storage.log, "Directory {} (part to remove) doesn't exist or one of nested files has gone. Most likely this is due to manual removing. This should be discouraged. Ignoring.", fullPath(disk, from));
             return;
         }
         throw;

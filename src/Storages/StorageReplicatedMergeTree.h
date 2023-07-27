@@ -26,6 +26,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <Interpreters/Cluster.h>
 #include <Interpreters/PartLog.h>
+#include <Common/Macros.h>
 #include <Common/randomSeed.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <Common/Throttler.h>
@@ -95,9 +96,6 @@ public:
     bool supportsParallelInsert() const override { return true; }
     bool supportsReplication() const override { return true; }
     bool supportsDeduplication() const override { return true; }
-
-    Strings getChildrenFromZKWithRetry(String path, int retry_time = 5) const;
-    std::unordered_set<String> getMissingPartsFromZK() const override;
 
     Strings getChildrenFromZKWithRetry(String path, int retry_time = 5) const;
     std::unordered_set<String> getMissingPartsFromZK() const override;

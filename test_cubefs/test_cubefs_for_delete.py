@@ -101,7 +101,7 @@ class Test_cubefs_for_delete(base.Base):
 
 
 	def teardown_method(self):
-		#input('press any key to exit')
+		# input('press any key to exit')
 		super().drop_table_if_exist(super().client1())
 		super().drop_table_if_exist(super().client2())
 		super().uninit()
@@ -249,4 +249,4 @@ class Test_cubefs_for_drop_part(base.Base):
 
 if __name__=="__main__":
 	pytest.main(['-v', '-n8' , '--dist=loadscope', 'test_cubefs_for_delete.py'])
-#	pytest.main(['-s' , 'test_cubefs_for_delete.py'])
+	# pytest.main(['-s' , 'test_cubefs_for_delete.py'])

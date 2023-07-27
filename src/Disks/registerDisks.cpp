@@ -56,8 +56,6 @@ void registerDisks()
 
     registerDiskCubeFS(factory);
     registerDiskWebServer(factory);
-
-    registerDiskCache(factory);
 }
 
 }
