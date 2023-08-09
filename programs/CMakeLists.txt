@@ -24,6 +24,8 @@ option (ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG "Configs processor (extract values
 # https://clickhouse.com/docs/en/operations/utilities/clickhouse-compressor/
 option (ENABLE_CLICKHOUSE_COMPRESSOR "Data compressor and decompressor" ${ENABLE_CLICKHOUSE_ALL})
 
+option (ENABLE_CLICKHOUSE_TIGER "Tiger Program" ${ENABLE_CLICKHOUSE_ALL})
+
 # https://clickhouse.com/docs/en/operations/utilities/clickhouse-copier/
 option (ENABLE_CLICKHOUSE_COPIER "Inter-cluster data copying mode" ${ENABLE_CLICKHOUSE_ALL})
 
@@ -112,6 +114,12 @@ if (ENABLE_CLICKHOUSE_COPIER)
     message(STATUS "Copier mode: ON")
 else()
     message(STATUS "Copier mode: OFF")
+endif()
+
+if (ENABLE_CLICKHOUSE_TIGER)
+    message(STATUS "Tiger mode: ON")
+else()
+    message(STATUS "Tiger mode: OFF")
 endif()
 
 if (ENABLE_CLICKHOUSE_FORMAT)
@@ -261,6 +269,7 @@ if (CLICKHOUSE_ONE_SHARED)
     ${CLICKHOUSE_GIT_IMPORT_SOURCES}
     ${CLICKHOUSE_ODBC_BRIDGE_SOURCES}
     ${CLICKHOUSE_KEEPER_SOURCES}
+    ${CLICKHOUSE_TIGER_SOURCES}
     ${CLICKHOUSE_KEEPER_CONVERTER_SOURCES}
     ${CLICKHOUSE_STATIC_FILES_DISK_UPLOADER_SOURCES})
 
@@ -277,6 +286,7 @@ if (CLICKHOUSE_ONE_SHARED)
       ${CLICKHOUSE_GIT_IMPORT_LINK}
       ${CLICKHOUSE_ODBC_BRIDGE_LINK}
       ${CLICKHOUSE_KEEPER_LINK}
+      ${CLICKHOUSE_TIGER_LINK}
       ${CLICKHOUSE_KEEPER_CONVERTER_LINK}
       ${CLICKHOUSE_STATIC_FILES_DISK_UPLOADER_LINK})
 
@@ -293,6 +303,7 @@ if (CLICKHOUSE_ONE_SHARED)
       ${CLICKHOUSE_GIT_IMPORT_INCLUDE}
       ${CLICKHOUSE_ODBC_BRIDGE_INCLUDE}
       ${CLICKHOUSE_KEEPER_INCLUDE}
+      ${CLICKHOUSE_TIGER_INCLUDE}
       ${CLICKHOUSE_KEEPER_CONVERTER_INCLUDE})
 
     set_target_properties(clickhouse-lib PROPERTIES SOVERSION ${VERSION_MAJOR}.${VERSION_MINOR} VERSION ${VERSION_SO} OUTPUT_NAME clickhouse DEBUG_POSTFIX "")
@@ -312,6 +323,7 @@ if (CLICKHOUSE_SPLIT_BINARY)
         clickhouse-git-import
         clickhouse-copier
         clickhouse-static-files-disk-uploader
+        clickhouse-tiger
     )
 
     if (ENABLE_CLICKHOUSE_ODBC_BRIDGE)
@@ -328,6 +340,10 @@ if (CLICKHOUSE_SPLIT_BINARY)
 
     if (ENABLE_CLICKHOUSE_KEEPER_CONVERTER)
         list (APPEND CLICKHOUSE_ALL_TARGETS clickhouse-keeper-converter)
+    endif ()
+
+    if (ENABLE_CLICKHOUSE_TIGER)
+        list (APPEND CLICKHOUSE_ALL_TARGETS clickhouse-tiger)
     endif ()
 
     set_target_properties(${CLICKHOUSE_ALL_TARGETS} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ..)
@@ -355,6 +371,9 @@ else ()
     endif ()
     if (ENABLE_CLICKHOUSE_LOCAL)
         clickhouse_target_link_split_lib(clickhouse local)
+    endif ()
+    if (ENABLE_CLICKHOUSE_TIGER)
+        clickhouse_target_link_split_lib(clickhouse tiger)
     endif ()
     if (ENABLE_CLICKHOUSE_BENCHMARK)
         clickhouse_target_link_split_lib(clickhouse benchmark)
@@ -415,6 +434,11 @@ else ()
         add_custom_target (clickhouse-copier ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-copier DEPENDS clickhouse)
         install (FILES "${CMAKE_CURRENT_BINARY_DIR}/clickhouse-copier" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-copier)
+    endif ()
+    if (ENABLE_CLICKHOUSE_TIGER)
+        add_custom_target (clickhouse-tiger ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-tiger DEPENDS clickhouse)
+        install (FILES "${CMAKE_CURRENT_BINARY_DIR}/clickhouse-tiger" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
+        list(APPEND CLICKHOUSE_BUNDLE clickhouse-tiger)
     endif ()
     if (ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG)
         add_custom_target (clickhouse-extract-from-config ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-extract-from-config DEPENDS clickhouse)

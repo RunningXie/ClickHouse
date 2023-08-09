@@ -63,6 +63,9 @@ int mainEntryClickHouseKeeperConverter(int argc, char ** argv);
 #if ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER
 int mainEntryClickHouseStaticFilesDiskUploader(int argc, char ** argv);
 #endif
+#if ENABLE_CLICKHOUSE_TIGER
+int mainEntryClickHouseTiger(int argc, char ** argv);
+#endif
 #if ENABLE_CLICKHOUSE_INSTALL
 int mainEntryClickHouseInstall(int argc, char ** argv);
 int mainEntryClickHouseStart(int argc, char ** argv);
@@ -89,54 +92,56 @@ using MainFunc = int (*)(int, char**);
 #if !defined(FUZZING_MODE)
 
 /// Add an item here to register new application
-std::pair<const char *, MainFunc> clickhouse_applications[] =
-{
-#if ENABLE_CLICKHOUSE_LOCAL
+std::pair<const char *, MainFunc> clickhouse_applications[] = {
+#    if ENABLE_CLICKHOUSE_LOCAL
     {"local", mainEntryClickHouseLocal},
-#endif
-#if ENABLE_CLICKHOUSE_CLIENT
+#    endif
+#    if ENABLE_CLICKHOUSE_CLIENT
     {"client", mainEntryClickHouseClient},
-#endif
-#if ENABLE_CLICKHOUSE_BENCHMARK
+#    endif
+#    if ENABLE_CLICKHOUSE_BENCHMARK
     {"benchmark", mainEntryClickHouseBenchmark},
-#endif
-#if ENABLE_CLICKHOUSE_SERVER
+#    endif
+#    if ENABLE_CLICKHOUSE_SERVER
     {"server", mainEntryClickHouseServer},
-#endif
-#if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
+#    endif
+#    if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
     {"extract-from-config", mainEntryClickHouseExtractFromConfig},
-#endif
-#if ENABLE_CLICKHOUSE_COMPRESSOR
+#    endif
+#    if ENABLE_CLICKHOUSE_COMPRESSOR
     {"compressor", mainEntryClickHouseCompressor},
-#endif
-#if ENABLE_CLICKHOUSE_FORMAT
+#    endif
+#    if ENABLE_CLICKHOUSE_FORMAT
     {"format", mainEntryClickHouseFormat},
-#endif
-#if ENABLE_CLICKHOUSE_COPIER
+#    endif
+#    if ENABLE_CLICKHOUSE_COPIER
     {"copier", mainEntryClickHouseClusterCopier},
-#endif
-#if ENABLE_CLICKHOUSE_OBFUSCATOR
+#    endif
+#    if ENABLE_CLICKHOUSE_OBFUSCATOR
     {"obfuscator", mainEntryClickHouseObfuscator},
-#endif
-#if ENABLE_CLICKHOUSE_GIT_IMPORT
+#    endif
+#    if ENABLE_CLICKHOUSE_GIT_IMPORT
     {"git-import", mainEntryClickHouseGitImport},
-#endif
-#if ENABLE_CLICKHOUSE_KEEPER
+#    endif
+#    if ENABLE_CLICKHOUSE_KEEPER
     {"keeper", mainEntryClickHouseKeeper},
-#endif
-#if ENABLE_CLICKHOUSE_KEEPER_CONVERTER
+#    endif
+#    if ENABLE_CLICKHOUSE_KEEPER_CONVERTER
     {"keeper-converter", mainEntryClickHouseKeeperConverter},
-#endif
-#if ENABLE_CLICKHOUSE_INSTALL
+#    endif
+#    if ENABLE_CLICKHOUSE_TIGER
+    {"keeper-tiger", mainEntryClickHouseTiger},
+#    endif
+#    if ENABLE_CLICKHOUSE_INSTALL
     {"install", mainEntryClickHouseInstall},
     {"start", mainEntryClickHouseStart},
     {"stop", mainEntryClickHouseStop},
     {"status", mainEntryClickHouseStatus},
     {"restart", mainEntryClickHouseRestart},
-#endif
-#if ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER
+#    endif
+#    if ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER
     {"static-files-disk-uploader", mainEntryClickHouseStaticFilesDiskUploader},
-#endif
+#    endif
     {"hash-binary", mainEntryClickHouseHashBinary},
 };
 
