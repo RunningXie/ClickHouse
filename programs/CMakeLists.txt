@@ -238,6 +238,7 @@ add_subdirectory (install)
 add_subdirectory (git-import)
 add_subdirectory (bash-completion)
 add_subdirectory (static-files-disk-uploader)
+add_subdirectory (tiger)
 
 if (ENABLE_CLICKHOUSE_KEEPER)
     add_subdirectory (keeper)

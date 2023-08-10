@@ -130,7 +130,7 @@ std::pair<const char *, MainFunc> clickhouse_applications[] = {
     {"keeper-converter", mainEntryClickHouseKeeperConverter},
 #    endif
 #    if ENABLE_CLICKHOUSE_TIGER
-    {"keeper-tiger", mainEntryClickHouseTiger},
+    {"tiger", mainEntryClickHouseTiger},
 #    endif
 #    if ENABLE_CLICKHOUSE_INSTALL
     {"install", mainEntryClickHouseInstall},

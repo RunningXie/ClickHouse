@@ -2,15 +2,15 @@
 
 namespace DB
 {
-namespace ErrorCodes
-{
+    namespace ErrorCodes
+        {
 
-}
+        }
 }
 
-int mainEntryClickhouseTiger(int argc, char ** argv)
+int mainEntryClickHouseTiger(int argc, char ** argv)
 {
-    std::cout << "argc = " << std::endl;
-    std::cout << "argv = " << std::endl;
+    std::cout << "argc = " << argc << std::endl;
+    std::cout << "argv = " << argv << std::endl;
     return 0;
 }
