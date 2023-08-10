@@ -24,7 +24,7 @@ option (ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG "Configs processor (extract values
 # https://clickhouse.com/docs/en/operations/utilities/clickhouse-compressor/
 option (ENABLE_CLICKHOUSE_COMPRESSOR "Data compressor and decompressor" ${ENABLE_CLICKHOUSE_ALL})
 
-option (ENABLE_CLICKHOUSE_TIGER "Tiger Program" ${ENABLE_CLICKHOUSE_ALL})
+option (ENABLE_CLICKHOUSE_TIGER "Tiger Program" ${ENABLE_CLICKHOUSE_ALL})#可以在代码中判断ENABLE_CLICKHOUSE_TIGER这个变量
 
 # https://clickhouse.com/docs/en/operations/utilities/clickhouse-copier/
 option (ENABLE_CLICKHOUSE_COPIER "Inter-cluster data copying mode" ${ENABLE_CLICKHOUSE_ALL})
@@ -193,6 +193,7 @@ macro(clickhouse_program_add_library name)
     string(REPLACE "-" "_" name_uc ${name_uc})
 
     # Some dark magic
+    #PARENT_SCOPE将变量的作用范围扩展到父级目录
     set(CLICKHOUSE_${name_uc}_SOURCES ${CLICKHOUSE_${name_uc}_SOURCES} PARENT_SCOPE)
     set(CLICKHOUSE_${name_uc}_LINK ${CLICKHOUSE_${name_uc}_LINK} PARENT_SCOPE)
     set(CLICKHOUSE_${name_uc}_INCLUDE ${CLICKHOUSE_${name_uc}_INCLUDE} PARENT_SCOPE)
@@ -238,7 +239,7 @@ add_subdirectory (install)
 add_subdirectory (git-import)
 add_subdirectory (bash-completion)
 add_subdirectory (static-files-disk-uploader)
-add_subdirectory (tiger)
+add_subdirectory (tiger)#没有指定binary directory，生成的静态库位于source目录下
 
 if (ENABLE_CLICKHOUSE_KEEPER)
     add_subdirectory (keeper)
@@ -257,6 +258,7 @@ if (ENABLE_CLICKHOUSE_LIBRARY_BRIDGE)
 endif ()
 
 if (CLICKHOUSE_ONE_SHARED)
+  #根据源文件创建库
   add_library(clickhouse-lib SHARED
     ${CLICKHOUSE_SERVER_SOURCES}
     ${CLICKHOUSE_CLIENT_SOURCES}
@@ -274,6 +276,7 @@ if (CLICKHOUSE_ONE_SHARED)
     ${CLICKHOUSE_KEEPER_CONVERTER_SOURCES}
     ${CLICKHOUSE_STATIC_FILES_DISK_UPLOADER_SOURCES})
 
+    #把add_executable()和add_library()生成的文件链接到库
     target_link_libraries(clickhouse-lib
       ${CLICKHOUSE_SERVER_LINK}
       ${CLICKHOUSE_CLIENT_LINK}
@@ -291,6 +294,7 @@ if (CLICKHOUSE_ONE_SHARED)
       ${CLICKHOUSE_KEEPER_CONVERTER_LINK}
       ${CLICKHOUSE_STATIC_FILES_DISK_UPLOADER_LINK})
 
+    #对应库的头文件
     target_include_directories(clickhouse-lib
       ${CLICKHOUSE_SERVER_INCLUDE}
       ${CLICKHOUSE_CLIENT_INCLUDE}
@@ -312,6 +316,7 @@ if (CLICKHOUSE_ONE_SHARED)
 endif()
 
 if (CLICKHOUSE_SPLIT_BINARY)
+#赋值
     set (CLICKHOUSE_ALL_TARGETS
         clickhouse-server
         clickhouse-client
@@ -324,7 +329,6 @@ if (CLICKHOUSE_SPLIT_BINARY)
         clickhouse-git-import
         clickhouse-copier
         clickhouse-static-files-disk-uploader
-        clickhouse-tiger
     )
 
     if (ENABLE_CLICKHOUSE_ODBC_BRIDGE)
@@ -437,7 +441,9 @@ else ()
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-copier)
     endif ()
     if (ENABLE_CLICKHOUSE_TIGER)
+        #add_custom_target用于执行一些自定义的操作, 比如这里是建立一个clickhouse-tiger到clickhouse的软链接（create_symlink）,-E使CMake运行命令而不是构建,COMMAND：指定要在构建时执行的命令行,${CMAKE_COMMAND}是CMake的路径
         add_custom_target (clickhouse-tiger ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-tiger DEPENDS clickhouse)
+        #COMPONENT” 指定了安装组件，即将这个资源文件与哪个组件关联。这里使用的是 “clickhouse” 组件，表示该文件属于 clickHouse 程序的一部分，可以一并安装。
         install (FILES "${CMAKE_CURRENT_BINARY_DIR}/clickhouse-tiger" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-tiger)
     endif ()
