@@ -215,6 +215,7 @@ endmacro()
 
 macro(clickhouse_program_add_executable name)
     if(CLICKHOUSE_SPLIT_BINARY)
+        #生成二进制文件
         add_executable(clickhouse-${name} clickhouse-${name}.cpp)
         clickhouse_program_link_split_binary(${name})
         install(TARGETS clickhouse-${name} ${CLICKHOUSE_ALL_TARGETS} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
@@ -441,9 +442,9 @@ else ()
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-copier)
     endif ()
     if (ENABLE_CLICKHOUSE_TIGER)
-        #add_custom_target用于执行一些自定义的操作, 比如这里是建立一个clickhouse-tiger到clickhouse的软链接（create_symlink）,-E使CMake运行命令而不是构建,COMMAND：指定要在构建时执行的命令行,${CMAKE_COMMAND}是CMake的路径
+        #add_custom_target用于执行一些自定义的操作, 比如这里是建立一个clickhouse-copier到clickhouse的软链接（create_symlink）,-E使CMake运行命令而不是构建,
+        #COMMAND：指定要在构建时执行的命令行, ${CMAKE_COMMAND}是CMake的路径
         add_custom_target (clickhouse-tiger ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-tiger DEPENDS clickhouse)
-        #COMPONENT” 指定了安装组件，即将这个资源文件与哪个组件关联。这里使用的是 “clickhouse” 组件，表示该文件属于 clickHouse 程序的一部分，可以一并安装。
         install (FILES "${CMAKE_CURRENT_BINARY_DIR}/clickhouse-tiger" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-tiger)
     endif ()
