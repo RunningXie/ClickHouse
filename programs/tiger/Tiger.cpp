@@ -1,8 +1,8 @@
 #include <iostream>
+#include <libcfs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "libcfs.h"
 
 namespace DB
 {
@@ -22,43 +22,43 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
     }
 
     // 设置客户端信息
-    if (cfs_set_client(id, "volName", "xieyichen") != 0)
+    if (cfs_set_client(id, strdup("volName"), strdup("xieyichen")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "masterAddr", "cfs-south.oppo.local") != 0)
+    if (cfs_set_client(id, strdup("masterAddr"), strdup("cfs-south.oppo.local")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "logDir", "/home/service/var/logs/cfs/test-log") != 0)
+    if (cfs_set_client(id, strdup("logDir"), strdup("/home/service/var/logs/cfs/test-log")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "logLevel", "debug") != 0)
+    if (cfs_set_client(id, strdup("logLevel"), strdup("debug")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "accessKey", "jRlZO65q7XlH5bnV") != 0)
+    if (cfs_set_client(id, strdup("accessKey"), strdup("jRlZO65q7XlH5bnV")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "secretKey", "V1m730UzREHaK1jCkC0kL0cewOX0kH3K") != 0)
+    if (cfs_set_client(id, strdup("secretKey"), strdup("V1m730UzREHaK1jCkC0kL0cewOX0kH3K")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
         return -1;
     }
-    if (cfs_set_client(id, "pushAddr", "cfs.dg-push.wanyol.com") != 0)
+    if (cfs_set_client(id, strdup("pushAddr"), strdup("cfs.dg-push.wanyol.com")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
@@ -74,7 +74,7 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
     }
 
     // 打开文件并读写内容
-    int fd = cfs_open(id, "/test_dir/file.txt", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    int fd = cfs_open(id, strdup("/test_dir/file.txt"), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd < 0)
     {
         printf("Failed to open file\n");
@@ -83,7 +83,7 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
     }
 
     const char * data = "Hello, world!";
-    if (cfs_write(id, fd, (void *)data, strlen(data), 0) < 0)
+    if (cfs_write(id, fd, static_cast<void*>(const_cast<char*>(data)), strlen(data), 0) < 0)
     {
         printf("Failed to write file\n");
         cfs_close(id, fd);
@@ -93,7 +93,7 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
 
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
-    if (cfs_read(id, fd, (void *)buffer, sizeof(buffer), 0) < 0)
+    if (cfs_read(id, fd,static_cast<void *>(const_cast<char*>(buffer)), sizeof(buffer), 0) < 0)
     {
         printf("Failed to read file\n");
         cfs_close(id, fd);
@@ -106,5 +106,7 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
     // 关闭文件和客户端
     cfs_close(id, fd);
     cfs_close_client(id);
+    std::cout<<"argc = "<<argc<<std::endl;
+    std::cout<<"argv = "<<argv<<std::endl;
     return 0;
 }
