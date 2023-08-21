@@ -11,3 +11,25 @@ set_target_properties(_cubefs PROPERTIES
     IMPORTED_LOCATION "${CUBEFS_DIR}/build/bin/libcfs.a"
 )
 add_library(ch_contrib::cubefs ALIAS _cubefs)
+# 定义模板文件路径（也是生成文件路径）
+set(FILE_PATH "${CUBEFS_DIR}/libsdk/libcfs.h")
+# 检查文件是否包含指定内容
+file(STRINGS ${FILE_PATH} FILE_CONTENTS)
+list(FIND FILE_CONTENTS "#pragma GCC diagnostic push" PRAGMA_INDEX)
+if (PRAGMA_INDEX EQUAL -1)
+  # 在头部插入指令
+  execute_process(
+    COMMAND sh -c "echo '#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wreserved-identifier\"\n#pragma GCC diagnostic ignored \"-Wmacro-redefined\"\n' | cat - ${FILE_PATH}"
+    OUTPUT_FILE "${FILE_PATH}.tmp"
+  )
+  # 在尾部插入指令
+  execute_process(
+    COMMAND sh -c "echo '#pragma GCC diagnostic pop' >> ${FILE_PATH}.tmp"
+  )
+  # 重命名生成文件（覆盖原始文件）
+  execute_process(
+    COMMAND mv "${FILE_PATH}.tmp" "${FILE_PATH}"
+  )
+endif()
+
+
