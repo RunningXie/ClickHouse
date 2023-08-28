@@ -40,6 +40,7 @@ namespace ErrorCodes
 
 void WriteBufferFromFileDescriptor::nextImpl()
 {
+    throw std::runtime_error("debug call Runtime error");
     if (!offset())
         return;
 

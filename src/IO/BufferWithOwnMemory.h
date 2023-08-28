@@ -147,7 +147,7 @@ private:
 /** Buffer that could own its working memory.
   * Template parameter: ReadBuffer or WriteBuffer
   */
-template <typename Base>
+template <typename Base>//Base 在这里只是一个占位符，表示模板参数，具体的基类类型是在实例化时确定的。
 class BufferWithOwnMemory : public Base
 {
 protected:

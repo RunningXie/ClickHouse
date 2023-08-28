@@ -606,6 +606,7 @@ struct DiskWriteCheckData
     }
 };
 
+//尝试写入temp文件来测试是否可写
 bool DiskLocal::canWrite() const noexcept
 try
 {
@@ -678,6 +679,7 @@ bool DiskLocal::setup()
         pcg32_fast rng(randomSeed());
         UInt32 magic_number = rng();
         {
+            LOG_INFO(logger, "disk checker path: {}, disk name: {}", disk_checker_path,name);
             auto buf = writeFile(disk_checker_path, DBMS_DEFAULT_BUFFER_SIZE, WriteMode::Rewrite);
             writeIntBinary(magic_number, *buf);
         }

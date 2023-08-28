@@ -327,7 +327,7 @@ void DiskAccessStorage::scheduleWriteLists(AccessEntityType type)
 
     /// Create the 'need_rebuild_lists.mark' file.
     /// This file will be used later to find out if writing lists is successful or not.
-    std::ofstream{getNeedRebuildListsMarkFilePath(directory_path)};
+    std::ofstream{getNeedRebuildListsMarkFilePath(directory_path)};//匿名对象，它没有被赋值给任何变量,这句话的主要效果是创建文件
 
     lists_writing_thread = ThreadFromGlobalPool{&DiskAccessStorage::listsWritingThreadFunc, this};
     lists_writing_thread_is_waiting = true;
