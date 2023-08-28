@@ -40,7 +40,7 @@ namespace ErrorCodes
 
 void WriteBufferFromFileDescriptor::nextImpl()
 {
-    throw std::runtime_error("debug call Runtime error");
+    LOG_INFO(log,"step in void WriteBufferFromFileDescriptor::nextImpl()");
     if (!offset())
         return;
 
@@ -54,7 +54,7 @@ void WriteBufferFromFileDescriptor::nextImpl()
         ssize_t res = 0;
         {
             CurrentMetrics::Increment metric_increment{CurrentMetrics::Write};
-            res = ::write(fd, working_buffer.begin() + bytes_written, offset() - bytes_written);
+            res = ::write(fd, working_buffer.begin() + bytes_written, offset() - bytes_written);//::表示这里的write方法是系统自带的write
         }
 
         if ((-1 == res || 0 == res) && errno != EINTR)

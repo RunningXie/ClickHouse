@@ -11,7 +11,7 @@
 #include <Common/LockMemoryExceptionInThread.h>
 #include <IO/BufferBase.h>
 
-
+namespace Poco {class Logger;}
 namespace DB
 {
 
@@ -41,6 +41,7 @@ public:
       */
     inline void next()
     {
+        LOG_INFO(log,"step in void next()");
         if (!offset())
             return;
         bytes += offset();
@@ -68,6 +69,7 @@ public:
 
     inline void nextIfAtEnd()
     {
+        LOG_INFO(log,"step in void nextIfAtEnd()");
         if (!hasPendingData())
             next();
     }
@@ -75,6 +77,7 @@ public:
 
     void write(const char * from, size_t n)
     {
+        LOG_INFO(log,"step in void write(const char * from, size_t n)");
         if (finalized)
             throw Exception{ErrorCodes::LOGICAL_ERROR, "Cannot write to finalized buffer"};
 
@@ -154,6 +157,7 @@ private:
       * Throw an exception if something is wrong.
       */
     virtual void nextImpl() { throw Exception("Cannot write after end of buffer.", ErrorCodes::CANNOT_WRITE_AFTER_END_OF_BUFFER); }
+    Poco::Logger * log= &Poco::Logger::get("WriteBuffer");
 };
 
 

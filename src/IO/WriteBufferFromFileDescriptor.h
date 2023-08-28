@@ -2,7 +2,7 @@
 
 #include <IO/WriteBufferFromFileBase.h>
 
-
+namespace Poco {class Logger;}
 namespace DB
 {
 
@@ -44,6 +44,7 @@ public:
     std::string getFileName() const override;
 
     off_t size() const;
+    Poco::Logger * log = &Poco::Logger::get("WriteBufferFromFileDescriptor");
 
 protected:
     void nextImpl() override;
