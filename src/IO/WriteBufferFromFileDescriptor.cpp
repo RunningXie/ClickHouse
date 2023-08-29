@@ -57,7 +57,7 @@ std::string getCallStack()
 void WriteBufferFromFileDescriptor::nextImpl()
 {
     try{
-LOG_INFO(log,"step in void WriteBufferFromFileDescriptor::nextImpl()");
+LOG_INFO(log,"step in void WriteBufferFromFileDescriptor::nextImpl(), filename: {}",file_name);
     if (!offset())
         return;
 
@@ -92,10 +92,11 @@ LOG_INFO(log,"step in void WriteBufferFromFileDescriptor::nextImpl()");
 
     ProfileEvents::increment(ProfileEvents::DiskWriteElapsedMicroseconds, watch.elapsedMicroseconds());
     ProfileEvents::increment(ProfileEvents::WriteBufferFromFileDescriptorWriteBytes, bytes_written);
+// throw std::runtime_error("debug Stack trace");
     }
-    catch (const std::exception& e)
+catch (DB::Exception & e)
     {
-        LOG_INFO(log,"catch debug expection, call stack: {}" getCallStack());
+        LOG_INFO(log,"catch debug expection, call stack: {}", e.getStackTraceString());
     }
 }
 

@@ -10,8 +10,8 @@
 #include <Common/Exception.h>
 #include <Common/LockMemoryExceptionInThread.h>
 #include <IO/BufferBase.h>
+#include <base/logger_useful.h>
 
-namespace Poco {class Logger;}
 namespace DB
 {
 
@@ -28,6 +28,7 @@ namespace ErrorCodes
   *
   * Derived classes must implement the nextImpl() method.
   */
+//这个类打印日志同时也会输出到clickhouse-client的返回中
 class WriteBuffer : public BufferBase
 {
 public:
@@ -41,7 +42,6 @@ public:
       */
     inline void next()
     {
-        LOG_INFO(log,"step in void next()");
         if (!offset())
             return;
         bytes += offset();
@@ -69,7 +69,6 @@ public:
 
     inline void nextIfAtEnd()
     {
-        LOG_INFO(log,"step in void nextIfAtEnd()");
         if (!hasPendingData())
             next();
     }
@@ -77,7 +76,6 @@ public:
 
     void write(const char * from, size_t n)
     {
-        LOG_INFO(log,"step in void write(const char * from, size_t n)");
         if (finalized)
             throw Exception{ErrorCodes::LOGICAL_ERROR, "Cannot write to finalized buffer"};
 
