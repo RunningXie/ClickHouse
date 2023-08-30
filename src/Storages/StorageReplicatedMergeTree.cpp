@@ -188,10 +188,19 @@ zkutil::ZooKeeperPtr StorageReplicatedMergeTree::tryGetZooKeeper() const
 
 zkutil::ZooKeeperPtr StorageReplicatedMergeTree::getZooKeeper() const
 {
-    auto res = tryGetZooKeeper();
-    if (!res)
-        throw Exception("Cannot get ZooKeeper", ErrorCodes::NO_ZOOKEEPER);
-    return res;
+    do
+    {
+        auto res = tryGetZooKeeper();
+        if (!res)
+            throw Exception("Cannot get ZooKeeper", ErrorCodes::NO_ZOOKEEPER);
+        if (res->expired())
+        {
+            const_cast<StorageReplicatedMergeTree*>(this)->setZooKeeper();
+            continue;
+        }
+        return res;
+    }
+    while (true);
 }
 
 zkutil::ZooKeeperPtr StorageReplicatedMergeTree::getZooKeeperAndAssertNotReadonly() const
@@ -1722,12 +1731,22 @@ bool StorageReplicatedMergeTree::executeFetch(LogEntry & entry)
                     }
                 }
             }
-
             if (replica.empty())
             {
-                ProfileEvents::increment(ProfileEvents::ReplicatedPartFailedFetches);
-                throw Exception("No active replica has part " + entry.new_part_name + " or covering part", ErrorCodes::NO_REPLICA_HAS_PART);
-            }
+                String unactive_replica = findReplicaHavingCoveringPart(entry, false);
+                if (!unactive_replica.empty())
+                {
+                    ProfileEvents::increment(ProfileEvents::ReplicatedPartFailedFetches);
+                    throw Exception("No active replica has part " + entry.new_part_name + " or covering part", ErrorCodes::NO_REPLICA_HAS_PART);
+                }
+                if (std::difftime(std::time(nullptr), entry.create_time) < getSettings()->prefer_fetch_merged_part_time_threshold.totalSeconds())
+                {
+                    LOG_INFO(log, "Will not fetch part {}. No replica has this part. try fetch it later", entry.new_part_name);
+                    return false;
+                }
+                LOG_INFO(log, "Will not fetch part {}. No replica has this part.", entry.new_part_name);
+                return true;
+           }
         }
 
         try
@@ -3498,8 +3517,10 @@ String StorageReplicatedMergeTree::findReplicaHavingCoveringPart(LogEntry & entr
             continue;
 
         if (active && !zookeeper->exists(fs::path(zookeeper_path) / "replicas" / replica / "is_active"))
+        {
+            LOG_TRACE(log, "unactive replica: {}", replica);
             continue;
-
+        }
         String largest_part_found;
         Strings parts = zookeeper->getChildren(fs::path(zookeeper_path) / "replicas" / replica / "parts");
         for (const String & part_on_replica : parts)
@@ -3852,6 +3873,7 @@ bool StorageReplicatedMergeTree::fetchPart(const String & part_name, const Stora
                 LOG_DEBUG(log, "Not fetching part: {}, part alreadly exists in data sharing disk {}",
                         fetched_part->name, disk->getName());
                 Transaction transaction(*this);
+                transaction.addPart(fetched_part);
                 replaced_parts = checkPartChecksumsAndCommit(transaction, fetched_part);
                 for (const auto & replaced_part : replaced_parts)
                 {
@@ -7045,6 +7067,7 @@ bool StorageReplicatedMergeTree::dropPartImpl(
         String log_znode_path = dynamic_cast<const Coordination::CreateResponse &>(*responses[clear_block_ops_size + 1]).path_created;
         entry.znode_name = log_znode_path.substr(log_znode_path.find_last_of('/') + 1);
 
+        LOG_TRACE(log, "A new log entry commit DROP RANGE for part {}.", part_name);
         return true;
     }
 }
@@ -7815,17 +7838,18 @@ DistributeLockGuardPtr StorageReplicatedMergeTree::getDistributeLockGuard(
         LOG_WARNING(log, "Cannot create distribute lock for part {} on disk {} guard without zookeeper", part_name, disk_name);
         return nullptr;
     }
-    if (zookeeper->expired())
-    {
-        zookeeper = getContext()->getZooKeeper();
-    }
 
     String hostname = getContext()->getInterserverIOAddress().first;
     String zk_node_path = getDistributeLockPath(disk_name, part_name);
     DistributeLockGuardPtr lock_guard = std::make_shared<DistributeLockGuard>(zookeeper, zk_node_path);
-    if (!lock_guard->tryLock(value, hostname))
+    while (!lock_guard->tryLock(value, hostname))
     {
-        return nullptr;
+        if (zookeeper->expired())
+        {
+            zookeeper = getContext()->getZooKeeper();
+        }
+        LOG_DEBUG(log, "lock of part {} postponed, someone other using ({}) this part right now", part_name, value);
+        sleep(2);
     }
     LOG_DEBUG(log, "Create distribute lock for part {} on disk {} for {}", part_name, disk_name, value);
     return lock_guard;
@@ -8044,7 +8068,7 @@ Strings StorageReplicatedMergeTree::getChildrenFromZKWithRetry(String path, int 
     return {};
 }
 
-std::unordered_set<String> StorageReplicatedMergeTree::getMissingPartsFromZK() const
+std::unordered_set<String> StorageReplicatedMergeTree::getMissingPartsFromZK() const 
 {
     std::unordered_set<String> local_parts;
     std::unordered_set<String> other_parts;

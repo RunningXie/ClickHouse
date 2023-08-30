@@ -404,8 +404,10 @@ void ReplicatedMergeTreeQueue::removeCoveredPartsFromMutations(const String & pa
 
     auto in_partition = mutations_by_partition.find(part_info.partition_id);
     if (in_partition == mutations_by_partition.end())
+    {
+        LOG_TEST(log, "Removing part {} failed, part (partition id {}) is not assigned to mutations.", part_name, part_info.partition_id);
         return;
-
+    }
     bool some_mutations_are_probably_done = false;
 
     for (auto & it : in_partition->second)
@@ -432,6 +434,7 @@ void ReplicatedMergeTreeQueue::removeCoveredPartsFromMutations(const String & pa
             status.latest_fail_reason.clear();
         }
     }
+    LOG_TEST(log, "Removing part {} from mutations (finalizing_task)", part_name);
 
     if (some_mutations_are_probably_done)
         storage.mutations_finalizing_task->schedule();
@@ -2308,7 +2311,10 @@ void ReplicatedMergeTreeQueue::removeCurrentPartsFromMutations()
 {
     std::lock_guard state_lock(state_mutex);
     for (const auto & part_name : current_parts.getParts())
+    {
+        LOG_TRACE(log, "Remove current part {} from Mutations", part_name);
         removeCoveredPartsFromMutations(part_name, /*remove_part = */ true, /*remove_covered_parts = */ true);
+    }
 }
 
 }

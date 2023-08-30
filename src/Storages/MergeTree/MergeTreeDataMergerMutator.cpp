@@ -150,6 +150,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
     /// Previous part only in boundaries of partition frame
     const MergeTreeData::DataPartPtr * prev_part = nullptr;
 
+    String disable_reason = "";
     size_t parts_selected_precondition = 0;
     for (const MergeTreeData::DataPartPtr & part : data_parts)
     {
@@ -172,9 +173,11 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
             * So we have to check if this part is currently being inserted with quorum and so on and so forth.
             * Obviously we have to check it manually only for the first part
             * of each partition because it will be automatically checked for a pair of parts. */
-            if (!can_merge_callback(nullptr, part, nullptr))
+            if (!can_merge_callback(nullptr, part, &disable_reason))
+            {
+                LOG_TEST(log, "Cannot select parts to merge({})", disable_reason);
                 continue;
-
+            }
             /// This part can be merged only with next parts (no prev part exists), so start
             /// new interval if previous was not empty.
             if (!parts_ranges.back().empty())
@@ -184,8 +187,9 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
         {
             /// If we cannot merge with previous part we had to start new parts
             /// interval (in the same partition)
-            if (!can_merge_callback(*prev_part, part, nullptr))
+            if (!can_merge_callback(*prev_part, part, &disable_reason))
             {
+                LOG_TEST(log, "Cannot select parts to merge({})", disable_reason);
                 /// Now we have no previous part
                 prev_part = nullptr;
 
@@ -196,8 +200,11 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
                 /// for example, merge is already assigned for such parts, or they participate in quorum inserts
                 /// and so on.
                 /// Also we don't start new interval here (maybe all next parts cannot be merged and we don't want to have empty interval)
-                if (!can_merge_callback(nullptr, part, nullptr))
+                if (!can_merge_callback(nullptr, part, &disable_reason))
+                {
+                    LOG_TEST(log, "Cannot select parts to merge({})", disable_reason);
                     continue;
+                }
 
                 /// Starting new interval in the same partition
                 parts_ranges.emplace_back();
@@ -221,6 +228,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
         if (prev_part && part->info.partition_id == (*prev_part)->info.partition_id
             && part->info.min_block <= (*prev_part)->info.max_block)
         {
+            LOG_TEST(log, "Part {} intersects previous part {}", part->name, (*prev_part)->name);
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Part {} intersects previous part {}", part->name, (*prev_part)->name);
         }
 
@@ -231,6 +239,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
     {
         if (out_disable_reason)
             *out_disable_reason = "No parts satisfy preconditions for merge";
+        LOG_TEST(log, "No parts satisfy preconditions for merge");
         return SelectPartsDecision::CANNOT_SELECT;
     }
 
@@ -243,7 +252,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
                 next_delete_ttl_merge_times_by_partition,
                 current_time,
                 data_settings->merge_with_ttl_timeout,
-                data_settings->ttl_only_drop_parts);
+                data_settings->ttl_only_drop_parts, log);
 
         parts_to_merge = delete_ttl_selector.select(parts_ranges, max_total_size_to_merge);
         if (!parts_to_merge.empty())
@@ -256,7 +265,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
                     next_recompress_ttl_merge_times_by_partition,
                     current_time,
                     data_settings->merge_with_recompression_ttl_timeout,
-                    metadata_snapshot->getRecompressionTTLs());
+                    metadata_snapshot->getRecompressionTTLs(), log);
 
             parts_to_merge = recompress_ttl_selector.select(parts_ranges, max_total_size_to_merge);
             if (!parts_to_merge.empty())
@@ -266,6 +275,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
 
     if (parts_to_merge.empty())
     {
+        LOG_TEST(log, "Logical error: merge selector returned no part to merge");
         SimpleMergeSelector::Settings merge_settings;
         /// Override value from table settings
         merge_settings.max_parts_to_merge_at_once = data_settings->max_parts_to_merge_at_once;
@@ -278,12 +288,15 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectPartsToMerge(
 
         /// Do not allow to "merge" part with itself for regular merges, unless it is a TTL-merge where it is ok to remove some values with expired ttl
         if (parts_to_merge.size() == 1)
+        {
+            LOG_TEST(log, "Logical error: merge selector returned only one part to merge");
             throw Exception("Logical error: merge selector returned only one part to merge", ErrorCodes::LOGICAL_ERROR);
-
+        }
         if (parts_to_merge.empty())
         {
             if (out_disable_reason)
                 *out_disable_reason = "There is no need to merge parts according to merge selector algorithm";
+            LOG_TEST(log, "There is no need to merge parts according to merge selector algorithm");
             return SelectPartsDecision::CANNOT_SELECT;
         }
     }
@@ -333,6 +346,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectAllPartsToMergeWithinParti
     {
         if (out_disable_reason)
             *out_disable_reason = "Partition skipped due to optimize_skip_merged_partitions";
+        LOG_TEST(log, "Partition skipped due to optimize_skip_merged_partitions");
         return SelectPartsDecision::NOTHING_TO_MERGE;
     }
 
@@ -345,6 +359,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectAllPartsToMergeWithinParti
         /// For the case of one part, we check that it can be merged "with itself".
         if ((it != parts.begin() || parts.size() == 1) && !can_merge(*prev_it, *it, out_disable_reason))
         {
+            LOG_TEST(log, "Cannot select parts to merge({})", (out_disable_reason ? *out_disable_reason : ""));
             return SelectPartsDecision::CANNOT_SELECT;
         }
 
@@ -376,6 +391,7 @@ SelectPartsDecision MergeTreeDataMergerMutator::selectAllPartsToMergeWithinParti
         if (out_disable_reason)
             *out_disable_reason = fmt::format("Insufficient available disk space, required {}", ReadableSize(required_disk_space));
 
+        LOG_TEST(log, "Cannot select parts to merge");
         return SelectPartsDecision::CANNOT_SELECT;
     }
 

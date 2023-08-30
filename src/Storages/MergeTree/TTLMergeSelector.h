@@ -21,10 +21,11 @@ class ITTLMergeSelector : public IMergeSelector
 public:
     using PartitionIdToTTLs = std::map<String, time_t>;
 
-    ITTLMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_)
+    ITTLMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_, Poco::Logger* logger)
         : current_time(current_time_)
         , merge_due_times(merge_due_times_)
         , merge_cooldown_time(merge_cooldown_time_)
+        , log(logger)
     {
     }
 
@@ -46,6 +47,8 @@ protected:
 private:
     PartitionIdToTTLs & merge_due_times;
     Int64 merge_cooldown_time;
+    Poco::Logger * log;
+
 };
 
 
@@ -56,8 +59,8 @@ class TTLDeleteMergeSelector : public ITTLMergeSelector
 public:
     using PartitionIdToTTLs = std::map<String, time_t>;
 
-    TTLDeleteMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_, bool only_drop_parts_)
-        : ITTLMergeSelector(merge_due_times_, current_time_, merge_cooldown_time_)
+    TTLDeleteMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_, bool only_drop_parts_, Poco::Logger* logger)
+        : ITTLMergeSelector(merge_due_times_, current_time_, merge_cooldown_time_, logger)
         , only_drop_parts(only_drop_parts_) {}
 
     time_t getTTLForPart(const IMergeSelector::Part & part) const override;
@@ -75,8 +78,8 @@ private:
 class TTLRecompressMergeSelector : public ITTLMergeSelector
 {
 public:
-    TTLRecompressMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_, const TTLDescriptions & recompression_ttls_)
-        : ITTLMergeSelector(merge_due_times_, current_time_, merge_cooldown_time_)
+    TTLRecompressMergeSelector(PartitionIdToTTLs & merge_due_times_, time_t current_time_, Int64 merge_cooldown_time_, const TTLDescriptions & recompression_ttls_, Poco::Logger* logger)
+        : ITTLMergeSelector(merge_due_times_, current_time_, merge_cooldown_time_, logger)
         , recompression_ttls(recompression_ttls_)
     {}
 

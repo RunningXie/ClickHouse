@@ -64,6 +64,7 @@ public:
     virtual bool hasAnyVolumeWithDisabledMerges() const = 0;
     virtual bool containsVolume(const String & volume_name) const = 0;
     /// Returns disks by type ordered by volumes priority
+    virtual bool supportMoveByPolicyRule() const = 0;
 };
 
 }

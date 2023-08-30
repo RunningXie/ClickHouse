@@ -80,7 +80,7 @@ public:
     /// Returns number [0., 1.] -- fraction of free space on disk
     /// which should be kept with help of background moves
     double getMoveFactor() const  override{ return move_factor; }
-
+    bool supportMoveByPolicyRule() const override { return support_move_by_policy_rule; }
     /// Get volume by index.
     VolumePtr getVolume(size_t index) const override;
 
@@ -103,7 +103,7 @@ private:
     /// We move something if disk from this policy
     /// filled more than total_size * move_factor
     double move_factor = 0.1; /// by default move factor is 10%
-
+    bool support_move_by_policy_rule = true;
     void buildVolumeIndices();
 };
 

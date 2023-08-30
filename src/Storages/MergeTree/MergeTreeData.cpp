@@ -1252,7 +1252,7 @@ MergeTreeData::LoadPartResult MergeTreeData::loadDataPart(
 
     res.part->modification_time = part_disk_ptr->getLastModified(fs::path(relative_data_path) / part_name).epochTime();
     /// Assume that all parts are Active, covered parts will be detected and marked as Outdated later
-    res.part->setState(DataPartState::Active);
+    res.part->setState(DataPartState::PreActive);
 
     DataPartIteratorByInfo it;
     bool inserted;

@@ -175,13 +175,17 @@ ReplicatedMergeTreePartCheckThread::MissingPartSearchResult ReplicatedMergeTreeP
             {
                 if (part_on_replica_info.min_block == part_info.min_block)
                     found_part_with_the_same_min_block = true;
+                else
+                    found_part_with_the_same_min_block = false;
                 if (part_on_replica_info.max_block == part_info.max_block)
                     found_part_with_the_same_max_block = true;
+                else
+                    found_part_with_the_same_max_block = false;
 
                 if (found_part_with_the_same_min_block && found_part_with_the_same_max_block)
                 {
                     /// FIXME It may never appear
-                    LOG_WARNING(log, "Found parts with the same min block and with the same max block as the missing part {} on replica {}. Hoping that it will eventually appear as a result of a merge.", part_name, replica);
+                    LOG_WARNING(log, "Found part {} with the same min block and with the same max block as the missing part {} on replica {}. Hoping that it will eventually appear as a result of a merge.", part_on_replica, part_name, replica);
                     return MissingPartSearchResult::FoundAndDontNeedFetch;
                 }
             }

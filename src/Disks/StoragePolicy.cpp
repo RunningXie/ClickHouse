@@ -74,6 +74,7 @@ StoragePolicy::StoragePolicy(
     if (move_factor > 1)
         throw Exception("Disk move factor have to be in [0., 1.] interval, but set to " + toString(move_factor) + " in storage policy " + backQuote(name), ErrorCodes::LOGICAL_ERROR);
 
+    support_move_by_policy_rule = config.getBool(config_prefix + ".support_move_by_policy_rule", true);
     buildVolumeIndices();
 }
 

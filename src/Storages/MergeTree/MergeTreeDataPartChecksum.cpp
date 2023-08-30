@@ -38,7 +38,7 @@ void MergeTreeDataPartChecksum::checkEqual(const MergeTreeDataPartChecksum & rhs
         return;
     }
     if (rhs.file_size != file_size)
-        throw Exception("Unexpected size of file " + name + " in data part", ErrorCodes::BAD_SIZE_OF_FILE_IN_DATA_PART);
+        throw Exception("Unexpected size of file " + name + " in data part, actual " + std::to_string(rhs.file_size) + ", expect " + std::to_string(file_size), ErrorCodes::BAD_SIZE_OF_FILE_IN_DATA_PART);
     if (rhs.file_hash != file_hash)
         throw Exception("Checksum mismatch for file " + name + " in data part", ErrorCodes::CHECKSUM_DOESNT_MATCH);
 }

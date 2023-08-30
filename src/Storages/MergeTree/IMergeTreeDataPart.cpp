@@ -1265,6 +1265,12 @@ void IMergeTreeDataPart::remove() const
         }
     }
 
+    if (should_lock && !disk->exists(from))
+    {
+        LOG_INFO(storage.log, "Directory {} (part to remove) on shared disk {}  doesn't exist. Most likely it is delected by others or manual removing. Ignoring.", fullPath(disk, from), disk->getName());
+        return;
+    }
+
     try
     {
         disk->moveDirectory(from, to);

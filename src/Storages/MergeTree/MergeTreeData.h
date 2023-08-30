@@ -264,7 +264,7 @@ public:
 
         size_t size() const { return precommitted_parts.size(); }
         bool isEmpty() const { return precommitted_parts.empty(); }
-
+        void addPart(DataPartPtr data_part) { precommitted_parts.insert(data_part); }
         ~Transaction()
         {
             try
