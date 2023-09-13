@@ -37,23 +37,6 @@ namespace ErrorCodes
     extern const int CANNOT_FSTAT;
 }
 
-std::string getCallStack()
-{
-    try
-    {
-        // 抛出一个异常以捕获调用栈信息
-        throw;
-    }
-    catch (const std::exception& e)
-    {
-        return e.what();
-    }
-    catch (...)
-    {
-        return "Call stack unavailable";
-    }
-}
-
 void WriteBufferFromFileDescriptor::nextImpl()
 {
     
@@ -91,16 +74,6 @@ void WriteBufferFromFileDescriptor::nextImpl()
 
     ProfileEvents::increment(ProfileEvents::DiskWriteElapsedMicroseconds, watch.elapsedMicroseconds());
     ProfileEvents::increment(ProfileEvents::WriteBufferFromFileDescriptorWriteBytes, bytes_written);
-    try{
-    if (file_name!=""){
-LOG_INFO(log,"step in void WriteBufferFromFileDescriptor::nextImpl(), filename: {}",file_name);
- throw std::runtime_error("debug Stack trace");
-    }
-    }
-catch (DB::Exception & e)
-    {
-        LOG_INFO(log,"catch debug expection, call stack: {}", e.getStackTraceString());
-    }
 }
 
 /// NOTE: This class can be used as a very low-level building block, for example

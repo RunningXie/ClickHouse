@@ -72,7 +72,7 @@ bool ReadBufferFromFileDescriptor::nextImpl()
             if (use_pread)
                 res = ::pread(fd, internal_buffer.begin(), internal_buffer.size(), file_offset_of_buffer_end);
             else
-                res = ::read(fd, internal_buffer.begin(), internal_buffer.size());
+                res = ::read(fd, internal_buffer.begin(), internal_buffer.size());//::全局范围，表示为系统调用的read方法
         }
         if (!res)
             break;

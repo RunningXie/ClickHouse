@@ -27,7 +27,7 @@ DiskPtr DiskFactory::create(
     ContextPtr context,
     const DisksMap & map) const
 {
-    const auto disk_type = config.getString(config_prefix + ".type", "local");
+    const auto disk_type = config.getString(config_prefix + ".type", "local"); //对应配置项storage_configuration.disks.type
 
     const auto found = registry.find(disk_type);
     if (found == registry.end())
