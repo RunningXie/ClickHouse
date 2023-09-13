@@ -89,6 +89,7 @@ void registerDiskCubeFS(DiskFactory & factory)
         std::shared_ptr<IDisk> cubeFSdisk
             = std::make_shared<DiskCubeFS>(name, config.getString(config_prefix + ".path", ""), context, settings);
         cubeFSDisk->startup();
-    }
+    };
+    factory.registerDiskType("cubefs", creator);
 }
 }

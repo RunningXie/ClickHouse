@@ -81,6 +81,7 @@ add_headers_and_sources(clickhouse_common_io Common/HashTable)
 add_headers_and_sources(clickhouse_common_io IO)
 add_headers_and_sources(clickhouse_common_io IO/Archives)
 add_headers_and_sources(clickhouse_common_io IO/S3)
+add_headers_and_sources(clickhouse_common_io ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 list (REMOVE_ITEM clickhouse_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
 
 add_headers_and_sources(dbms Disks/IO)
@@ -109,6 +110,10 @@ endif()
 if (TARGET ch_contrib::aws_s3)
     add_headers_and_sources(dbms Common/S3)
     add_headers_and_sources(dbms Disks/S3)
+endif()
+
+if (TARGET ch_contrib::cubefs)
+    add_headers_and_sources(dbms ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 endif()
 
 if (TARGET ch_contrib::azure_sdk)
@@ -462,6 +467,10 @@ endif()
 
 if (TARGET ch_contrib::aws_s3)
     target_link_libraries (clickhouse_common_io PUBLIC ch_contrib::aws_s3)
+endif()
+
+if (TARGET ch_contrib::cubefs)
+    target_link_libraries (clickhouse_common_io PUBLIC ch_contrib::cubefs)
 endif()
 
 if (TARGET ch_contrib::azure_sdk)
