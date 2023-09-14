@@ -29,7 +29,7 @@ public:
       */
     void setFD(int fd_) { fd = fd_; }
     int getFD() const { return fd; }
-    off_t size() const;
+    off_t size();
 
 private:
     bool nextImpl() override;

@@ -32,5 +32,6 @@ private:
     void nextImpl() override;
     int64_t id;
     std::string file_name;
-}
+    int fd;
+};
 }

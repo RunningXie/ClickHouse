@@ -22,11 +22,11 @@ void ReadBufferFromCubeFS::close()
 {
     if (fd < 0)
         return;
-    try
+    tryj
     {
         cfs_close(id, fd);
     }
-    cache(...)
+    catch (...)
     {
         throw Exception("Cannot close file", ErrorCodes::CANNOT_CLOSE_FILE);
     }
@@ -37,7 +37,7 @@ void ReadBufferFromCubeFS::close()
 off_t ReadBufferFromCubeFS::size()
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, file_name, &file_info);
+    int result = cfs_getattr(id, const_cast<char *>(file_name.data()), &file_info);
     if (result != 0)
     {
         // Handle the error (throw an exception, return an error code, etc.)
@@ -111,19 +111,15 @@ bool ReadBufferFromCubeFS::nextImpl()
     return true;
 }
 
-ReadBufferFromCubeFS::ReadBufferFromCubeFS(
-    int64_t id,
-    const std::string & file_name_,
-    int flags,
-    std::optional<size_t> file_size_)
-    : file_name(file_name_)
+ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file_name_, int flags, std::optional<size_t> file_size_)
+    : id(id_), file_name(file_name_)
 {
     //ProfileEvents::increment(ProfileEvents::FileOpen);
 
-    fd = cfs_open(id, file_name.c_str(), flags == -1 ? O_RDONLY | O_CLOEXEC : flags | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    fd = cfs_open(id_, const_cast<char *>(file_name_.data()), flags == -1 ? O_RDONLY | O_CLOEXEC : flags | O_CLOEXEC, S_IRUSR | S_IWUSR);
 
     if (-1 == fd)
         throwFromErrnoWithPath(
-            "Cannot open file " + file_name, file_name, errno == ENOENT ? ErrorCodes::FILE_DOESNT_EXIST : ErrorCodes::CANNOT_OPEN_FILE);
+            "Cannot open file " + file_name_, file_name_, errno == ENOENT ? ErrorCodes::FILE_DOESNT_EXIST : ErrorCodes::CANNOT_OPEN_FILE);
 }
 }

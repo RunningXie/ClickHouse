@@ -3,11 +3,19 @@
 
 namespace DB
 {
+namespace ErrorCodes
+{
+    extern const int FILE_DOESNT_EXIST;
+    extern const int CANNOT_OPEN_FILE;
+    extern const int CANNOT_CLOSE_FILE;
+}
+
 WriteBufferFromCubeFS::WriteBufferFromCubeFS(
     int64_t id_, const std::string & file_name_, size_t buf_size, int flags, mode_t mode, char * existing_memory, size_t alignment)
-    : WriteBufferFromFileBase(buf_size, existing_memory, alignment), file_name(std::move(file_name_)), id(id_)
+    : WriteBufferFromFileBase(buf_size, existing_memory, alignment), id(id_), file_name(std::move(file_name_))
 {
-    fd = cfs_open(id, file_name.c_str(), flags == -1 ? O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC : flags | O_CLOEXEC, mode);
+    fd = cfs_open(
+        id, const_cast<char *>(file_name_.data()), flags == -1 ? O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC : flags | O_CLOEXEC, mode);
 
     if (-1 == fd)
         throwFromErrnoWithPath(
@@ -87,7 +95,7 @@ void WriteBufferFromCubeFS::sync()
 void WriteBufferFromCubeFS::truncate(off_t length) // NOLINT
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, file_name, &file_info);
+    int result = cfs_getattr(id, const_cast<char *>(file_name.data()), &file_info);
     if (result != 0)
     {
         // Error handling
@@ -112,7 +120,7 @@ void WriteBufferFromCubeFS::truncate(off_t length) // NOLINT
 off_t WriteBufferFromCubeFS::size()
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, file_name, &file_info);
+    int result = cfs_getattr(id, const_cast<char *>(file_name.data()), &file_info);
     if (result != 0)
     {
         // Handle the error (throw an exception, return an error code, etc.)
