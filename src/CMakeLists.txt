@@ -114,6 +114,7 @@ if (TARGET ch_contrib::aws_s3)
 endif()
 
 if (TARGET ch_contrib::cubefs)
+    add_headers_and_sources(dbms Disks/CubeFS)
     add_headers_and_sources(dbms ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 endif()
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <Disks/DiskLocalCheckThread.h>
 #include <Disks/IDiskRemote.h>
 
 namespace DB
@@ -42,14 +43,9 @@ public:
 private:
     const String name;
     const String disk_path;
-    const String disk_checker_path = ".disk_checker_file";
     SettingsPtr settings;
     Poco::Logger * logger;
-    std::unique_ptr<DiskLocalCheckThread> disk_checker;
-    /// Setup disk for healthy check. Returns true if it's read-write, false if read-only.
-    /// Throw exception if it's not possible to setup necessary files and directories.
-    bool setup();
     bool canRead(const std::string & path);
     std::optional<size_t> fileSizeSafe(const fs::path & path);
-}
+};
 }

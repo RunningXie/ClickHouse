@@ -14,7 +14,6 @@ namespace ErrorCodes
     extern const int CANNOT_TRUNCATE_FILE;
     extern const int CANNOT_FSTAT;
 }
-}
 
 WriteBufferFromCubeFS::WriteBufferFromCubeFS(
     int64_t id_, const std::string & file_name_, size_t buf_size, int flags, mode_t mode, char * existing_memory, size_t alignment)

@@ -9,7 +9,7 @@ namespace DB
 
 void registerDiskLocal(DiskFactory & factory);
 void registerDiskMemory(DiskFactory & factory);
-
+void registerDiskCubeFS(DiskFactory & factory);
 #if USE_AWS_S3
 void registerDiskS3(DiskFactory & factory);
 #endif
@@ -35,6 +35,7 @@ void registerDisks()
 
     registerDiskLocal(factory);
     registerDiskMemory(factory);
+    registerDiskCubeFS(factory);
 
 #if USE_AWS_S3
     registerDiskS3(factory);
