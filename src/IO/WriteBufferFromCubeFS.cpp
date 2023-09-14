@@ -1,5 +1,8 @@
 #include <libcfs.h>
+#include <IO/WriteBufferFromCubeFS.h>
 
+namespace DB
+{
 WriteBufferFromCubeFS::WriteBufferFromCubeFS(
     int64_t id_, const std::string & file_name_, size_t buf_size, int flags, mode_t mode, char * existing_memory, size_t alignment)
     : WriteBufferFromFileBase(buf_size, existing_memory, alignment), file_name(std::move(file_name_)), id(id_)
@@ -84,14 +87,14 @@ void WriteBufferFromCubeFS::sync()
 void WriteBufferFromCubeFS::truncate(off_t length) // NOLINT
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, fd, &file_info);
+    int result = cfs_getattr(id, file_name, &file_info);
     if (result != 0)
     {
         // Error handling
         throwFromErrnoWithPath("Cannot truncate file " + getFileName(), getFileName(), ErrorCodes::CANNOT_TRUNCATE_FILE);
     }
 
-    if (length == file_info.st_size)
+    if (length == file_info.size)
     {
         // No need to truncate, the file already has the desired length
         return;
@@ -109,11 +112,12 @@ void WriteBufferFromCubeFS::truncate(off_t length) // NOLINT
 off_t WriteBufferFromCubeFS::size()
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, fd, &file_info);
+    int result = cfs_getattr(id, file_name, &file_info);
     if (result != 0)
     {
         // Handle the error (throw an exception, return an error code, etc.)
         throwFromErrnoWithPath("Cannot execute fstat " + getFileName(), getFileName(), ErrorCodes::CANNOT_FSTAT);
     }
-    return file_info.st_size;
+    return file_info.size;
+}
 }

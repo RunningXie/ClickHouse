@@ -1,6 +1,15 @@
 #include <libcfs.h>
 #include <IO/ReadBufferFromCubeFS.h>
 
+namespace DB
+{
+namespace ErrorCodes
+{
+    extern const int FILE_DOESNT_EXIST;
+    extern const int CANNOT_OPEN_FILE;
+    extern const int CANNOT_CLOSE_FILE;
+}
+
 ReadBufferFromCubeFS::~ReadBufferFromCubeFS()
 {
     if (fd < 0)
@@ -13,10 +22,14 @@ void ReadBufferFromCubeFS::close()
 {
     if (fd < 0)
         return;
-
-    if (0 != cfs_close(id, fd))
+    try
+    {
+        cfs_close(id, fd);
+    }
+    cache(...)
+    {
         throw Exception("Cannot close file", ErrorCodes::CANNOT_CLOSE_FILE);
-
+    }
     fd = -1;
     //metric_increment.destroy();
 }
@@ -24,13 +37,13 @@ void ReadBufferFromCubeFS::close()
 off_t ReadBufferFromCubeFS::size()
 {
     struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, fd, &file_info);
+    int result = cfs_getattr(id, file_name, &file_info);
     if (result != 0)
     {
         // Handle the error (throw an exception, return an error code, etc.)
         throwFromErrnoWithPath("Cannot execute fstat " + getFileName(), getFileName(), ErrorCodes::CANNOT_FSTAT);
     }
-    return file_info.st_size;
+    return file_info.size;
 }
 
 bool ReadBufferFromCubeFS::nextImpl()
@@ -99,20 +112,18 @@ bool ReadBufferFromCubeFS::nextImpl()
 }
 
 ReadBufferFromCubeFS::ReadBufferFromCubeFS(
-    int54_t id,
+    int64_t id,
     const std::string & file_name_,
-    size_t buf_size,
     int flags,
-    char * existing_memory,
-    size_t alignment,
     std::optional<size_t> file_size_)
     : file_name(file_name_)
 {
     //ProfileEvents::increment(ProfileEvents::FileOpen);
 
-    fd = cfs_open(id, file_name.c_str(), flags == -1 ? O_RDONLY | O_CLOEXEC : flags | O_CLOEXEC, mode);
+    fd = cfs_open(id, file_name.c_str(), flags == -1 ? O_RDONLY | O_CLOEXEC : flags | O_CLOEXEC, S_IRUSR | S_IWUSR);
 
     if (-1 == fd)
         throwFromErrnoWithPath(
             "Cannot open file " + file_name, file_name, errno == ENOENT ? ErrorCodes::FILE_DOESNT_EXIST : ErrorCodes::CANNOT_OPEN_FILE);
+}
 }
