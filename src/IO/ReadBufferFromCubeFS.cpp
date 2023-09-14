@@ -1,7 +1,7 @@
 #include <libcfs.h>
 #include <IO/ReadBufferFromCubeFS.h>
 
-ReadBufferFromCubeFS::~ReadBufferFromFile()
+ReadBufferFromCubeFS::~ReadBufferFromCubeFS()
 {
     if (fd < 0)
         return;
@@ -106,7 +106,7 @@ ReadBufferFromCubeFS::ReadBufferFromCubeFS(
     char * existing_memory,
     size_t alignment,
     std::optional<size_t> file_size_)
-    : ReadBufferFromFileDescriptor(-1, buf_size, existing_memory, alignment, file_size_), file_name(file_name_)
+    : file_name(file_name_)
 {
     //ProfileEvents::increment(ProfileEvents::FileOpen);
 

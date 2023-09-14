@@ -11,7 +11,7 @@ namespace DB
 class WriteBufferFromCubeFS : public WriteBufferFromFileBase
 {
 public:
-    explicit WriteBufferFromFileDescriptor(
+    explicit WriteBufferFromCubeFS(
         int64_t id,
         const std::string & file_name_,
         size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
@@ -19,7 +19,7 @@ public:
         mode_t mode = 0666,
         char * existing_memory = nullptr,
         size_t alignment = 0);
-    ~WriteBufferFromFile() override;
+    ~WriteBufferFromCubeFS() override;
     void close();
     void sync() override;
     void truncate(off_t length); // NOLINT
