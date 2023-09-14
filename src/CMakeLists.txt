@@ -75,7 +75,7 @@ add_subdirectory (Coordination)
 
 set(dbms_headers)
 set(dbms_sources)
-
+message("ClickHouse_SOURCE_DIR: ${ClickHouse_SOURCE_DIR}")
 add_headers_and_sources(clickhouse_common_io Common)
 add_headers_and_sources(clickhouse_common_io Common/HashTable)
 add_headers_and_sources(clickhouse_common_io IO)
@@ -83,6 +83,7 @@ add_headers_and_sources(clickhouse_common_io IO/Archives)
 add_headers_and_sources(clickhouse_common_io IO/S3)
 add_headers_and_sources(clickhouse_common_io ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 list (REMOVE_ITEM clickhouse_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
+#target_include_directories(clickhouse_common_io ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 
 add_headers_and_sources(dbms Disks/IO)
 if (TARGET ch_contrib::sqlite)
@@ -309,6 +310,7 @@ endmacro ()
 
 dbms_target_include_directories (PUBLIC "${ClickHouse_SOURCE_DIR}/src" "${ClickHouse_BINARY_DIR}/src")
 target_include_directories (clickhouse_common_io PUBLIC "${ClickHouse_SOURCE_DIR}/src" "${ClickHouse_BINARY_DIR}/src")
+target_include_directories(clickhouse_common_io PUBLIC ${ClickHouse_SOURCE_DIR}/contrib/cubefs/libsdk)
 
 if (TARGET ch_contrib::llvm)
     dbms_target_link_libraries (PUBLIC ch_contrib::llvm)
