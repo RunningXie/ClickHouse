@@ -70,7 +70,7 @@ std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
 std::unique_ptr<ReadBufferFromFileBase> DiskCubeFS::readFile(
     const String & path, const ReadSettings & settings, std::optional<size_t> read_hint, std::optional<size_t> file_size) const
 {
-    return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, buf_size, flags);
+    return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, flags);
 }
 
 std::optional<UInt32> DiskCubeFS::readDiskCheckerMagicNumber() const noexcept

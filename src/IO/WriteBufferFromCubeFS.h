@@ -22,7 +22,6 @@ public:
     ~WriteBufferFromCubeFS() override;
     void close();
     void sync() override;
-    void truncate(off_t length); // NOLINT
     std::string getFileName() const override { return file_name; }
     off_t size();
     Poco::Logger * log = &Poco::Logger::get("WriteBufferFromCubeFS");

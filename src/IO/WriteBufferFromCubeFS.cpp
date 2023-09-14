@@ -8,6 +8,12 @@ namespace ErrorCodes
     extern const int FILE_DOESNT_EXIST;
     extern const int CANNOT_OPEN_FILE;
     extern const int CANNOT_CLOSE_FILE;
+    extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
+    extern const int CANNOT_FSYNC;
+    extern const int CANNOT_SEEK_THROUGH_FILE;
+    extern const int CANNOT_TRUNCATE_FILE;
+    extern const int CANNOT_FSTAT;
+}
 }
 
 WriteBufferFromCubeFS::WriteBufferFromCubeFS(
@@ -90,31 +96,6 @@ void WriteBufferFromCubeFS::sync()
     int res = cfs_flush(id, fd);
     if (-1 == res)
         throwFromErrnoWithPath("Cannot flush " + getFileName(), getFileName(), ErrorCodes::CANNOT_FSYNC);
-}
-
-void WriteBufferFromCubeFS::truncate(off_t length) // NOLINT
-{
-    struct cfs_stat_info file_info;
-    int result = cfs_getattr(id, const_cast<char *>(file_name.data()), &file_info);
-    if (result != 0)
-    {
-        // Error handling
-        throwFromErrnoWithPath("Cannot truncate file " + getFileName(), getFileName(), ErrorCodes::CANNOT_TRUNCATE_FILE);
-    }
-
-    if (length == file_info.size)
-    {
-        // No need to truncate, the file already has the desired length
-        return;
-    }
-
-    file_info.st_size = length;
-    result = cfs_setattr(id, fd, &file_info, CFS_SET_ATTR_SIZE);
-    if (result != 0)
-    {
-        // Error handling
-        throwFromErrnoWithPath("Cannot truncate file " + getFileName(), getFileName(), ErrorCodes::CANNOT_TRUNCATE_FILE);
-    }
 }
 
 off_t WriteBufferFromCubeFS::size()

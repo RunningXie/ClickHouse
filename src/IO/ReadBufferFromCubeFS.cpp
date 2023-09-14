@@ -22,7 +22,7 @@ void ReadBufferFromCubeFS::close()
 {
     if (fd < 0)
         return;
-    tryj
+    try
     {
         cfs_close(id, fd);
     }
@@ -111,8 +111,7 @@ bool ReadBufferFromCubeFS::nextImpl()
     return true;
 }
 
-ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file_name_, int flags, std::optional<size_t> file_size_)
-    : id(id_), file_name(file_name_)
+ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file_name_, int flags) : id(id_), file_name(file_name_)
 {
     //ProfileEvents::increment(ProfileEvents::FileOpen);
 
