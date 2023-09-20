@@ -1,4 +1,5 @@
 #pragma once
+#include <libcfs.h>
 #include <Disks/IDiskRemote.h>
 
 namespace DB
@@ -64,6 +65,8 @@ public:
     DiskType getType() const override { return DiskType::CubeFS; }
     bool isRemote() const override { return true; }
     bool supportZeroCopyReplication() const override { return false; }
+    void removeRecursive(const String & path);
+        UInt64 getAvailableSpace() const override;
 
 private:
     std::optional<UInt32> readDiskCheckerMagicNumber() const noexcept;

@@ -1,9 +1,8 @@
 #include "DiskCubeFS.h"
-#include <libcfs.h>
-#include <IO/ReadBufferFromBase.h>
 #include <IO/ReadBufferFromCubeFS.h>
-#include <IO/WriteBufferFromBase.h>
+#include <IO/ReadBufferFromFileBase.h>
 #include <IO/WriteBufferFromCubeFS.h>
+#include <IO/WriteBufferFromFileBase.h>
 
 namespace DB
 {
@@ -127,6 +126,11 @@ UInt64 DiskCubeFS::getTotalSpace() const
     if (total_size < keep_free_space_bytes)
         return 0;
     return total_size - keep_free_space_bytes;
+}
+
+UInt64 DiskCubeFS::getAvailableSpace() const
+{
+    return getTotalSpace();
 }
 
 UInt64 DiskCubeFS::getUnreservedSpace() const
