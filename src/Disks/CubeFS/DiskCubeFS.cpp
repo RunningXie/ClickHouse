@@ -100,7 +100,7 @@ bool DiskCubeFS::tryReserve(UInt64 bytes)
     std::lock_guard lock(DiskCubeFS::reservation_mutex);
     if (bytes == 0)
     {
-        LOG_DEBUG(log, "Reserving 0 bytes on disk {}", backQuote(name));
+        LOG_DEBUG(logger, "Reserving 0 bytes on disk {}", backQuote(name));
         ++reservation_count;
         return true;
     }
@@ -110,7 +110,7 @@ bool DiskCubeFS::tryReserve(UInt64 bytes)
     if (unreserved_space >= bytes)
     {
         LOG_DEBUG(
-            log, "Reserving {} on disk {}, having unreserved {}.", ReadableSize(bytes), backQuote(name), ReadableSize(unreserved_space));
+            logger, "Reserving {} on disk {}, having unreserved {}.", ReadableSize(bytes), backQuote(name), ReadableSize(unreserved_space));
         ++reservation_count;
         reserved_bytes += bytes;
         return true;
@@ -144,7 +144,7 @@ UInt64 DiskCubeFS::getUnreservedSpace() const
 
 bool DiskCubeFS::isFile(const String & path) const
 {
-    struct cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(id, path);
 
     // 检查文件类型
     if (S_ISREG(stat.mode))
@@ -156,7 +156,7 @@ bool DiskCubeFS::isFile(const String & path) const
 bool DiskCubeFS::isDirectory(const String & path) const
 {
     // 获取文件属性
-    struct cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(id, path);
 
     // 检查文件类型
     if (S_ISDIR(stat.mode))
@@ -168,7 +168,7 @@ bool DiskCubeFS::isDirectory(const String & path) const
 size_t DiskCubeFS::getFileSize(const String & path) const
 {
     // 获取文件属性
-    struct cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(id, path);
 
     // 返回文件大小
     return stat.size;
@@ -176,7 +176,7 @@ size_t DiskCubeFS::getFileSize(const String & path) const
 
 struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path)
 {
-    struct cfs_stat_info stat;
+    cfs_stat_info stat;
     fs::path full_path = fs::path(disk_path) / path;
     int result = cfs_getattr(id, const_cast<char *>(path.c_str()), &stat);
     if (result != 0)
@@ -416,7 +416,7 @@ void DiskCubeFS::removeDirectory(const String & path)
 
 void DiskCubeFS::removeRecursive(const String & path)
 {
-    struct cfs_stat_info stat = getFileAttributes(path);
+    cfs_stat_info stat = getFileAttributes(path);
     if (S_ISDIR(stat.mode))
     {
         std::vector<String> & file_names listFiles(path, file_names);
@@ -510,6 +510,11 @@ DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr s
 {
 }
 
+DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
+    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS"), settings(std::move(settings_)))
+{
+}
+
 DiskCubeFSSettings ::DiskCubeFSSettings(
     const int64_t id_,
     String vol_name_,
@@ -532,7 +537,7 @@ DiskCubeFSSettings ::DiskCubeFSSettings(
 
 bool DiskCubeFS::canRead(const std::string & path)
 {
-    struct cfs_stat_info stat = getFileAttributes(path);
+    cfs_stat_info stat = getFileAttributes(path);
     if (stat.uid == geteuid())
         return (stat.mode & S_IRUSR) != 0;
     else if (stat.gid == getegid())
@@ -544,14 +549,14 @@ bool DiskCubeFS::canRead(const std::string & path)
 bool DiskCubeFS::exists(const String & path) const
 {
     String full_path = disk_path + "/" + path;
-    struct cfs_stat_info stat;
+    cfs_stat_info stat;
     int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
     return (result == 0);
 }
 
 std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
 {
-    struct cfs_stat_info stat;
+    cfs_stat_info stat;
     int result = cfs_getattr(settings->id, const_cast<char *>(path.c_str()), &stat);
 
     if (result == 0)

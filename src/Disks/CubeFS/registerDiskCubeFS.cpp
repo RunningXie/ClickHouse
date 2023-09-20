@@ -1,5 +1,3 @@
-#pragma once
-
 #include "DiskCubeFS.h"
 #include "Disks/DiskFactory.h"
 #include "Disks/DiskRestartProxy.h"

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <libcfs.h>
 #include <Disks/IDiskRemote.h>
 
@@ -30,7 +31,9 @@ class DiskCubeFS final : public IDisk
 public:
     friend class DiskCubeFSReservation;
     using SettingsPtr = std::unique_ptr<DiskCubeFSSettings>;
+
     DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_);
+    DiskCubeFS(const String & name_, const String & path_, ContextPtr context, SettingsPtr settings_);
     std::unique_ptr<ReadBufferFromFileBase> readFile(
         const String & path,
         const ReadSettings & settings,
@@ -85,5 +88,7 @@ private:
     std::atomic<bool> readonly{false};
     UInt64 reserved_bytes = 0;
     //const String disk_checker_path = ".disk_checker_file";
+    UInt64 reserved_bytes = 0;
+    UInt64 reservation_count = 0;
 };
 }
