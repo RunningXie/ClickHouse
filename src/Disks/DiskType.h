@@ -36,7 +36,7 @@ inline String toString(DiskType disk_type)
         case DiskType::AzureBlobStorage:
             return "azure_blob_storage";
         case DiskType::CubeFS:
-            return "cubefs"
+            return "cubefs";
     }
     __builtin_unreachable();
 }

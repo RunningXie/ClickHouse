@@ -24,12 +24,16 @@ struct DiskCubeFSSettings
     String push_addr;
 };
 
-class DiskCubeFS final : public IDiskRemote
+class DiskCubeFS final : public IDisk
 {
 public:
     using SettingsPtr = std::unique_ptr<DiskCubeFSSettings>;
     DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_);
-    std::unique_ptr<ReadBufferFromFileBase> readFile(const String & path) const override;
+    std::unique_ptr<ReadBufferFromFileBase> readFile(
+        const String & path,
+        const ReadSettings & settings,
+        std::optional<size_t> read_hint,
+        std::optional<size_t> file_size) const override;
     std::unique_ptr<WriteBufferFromFileBase> writeFile(const String & path, size_t buf_size, WriteMode mode) override;
     bool exists(const String & path) const override;
     const String & getName() const override { return name; }
