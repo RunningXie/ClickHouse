@@ -28,6 +28,7 @@ struct DiskCubeFSSettings
 class DiskCubeFS final : public IDisk
 {
 public:
+    friend class DiskCubeFSReservation;
     using SettingsPtr = std::unique_ptr<DiskCubeFSSettings>;
     DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_);
     std::unique_ptr<ReadBufferFromFileBase> readFile(
@@ -65,11 +66,11 @@ public:
     DiskType getType() const override { return DiskType::CubeFS; }
     bool isRemote() const override { return true; }
     bool supportZeroCopyReplication() const override { return false; }
-    void removeRecursive(const String & path);
-        UInt64 getAvailableSpace() const override;
+    void removeRecursive(const String & path) override;
+    UInt64 getAvailableSpace() const override;
 
 private:
-    std::optional<UInt32> readDiskCheckerMagicNumber() const noexcept;
+    //std::optional<UInt32> readDiskCheckerMagicNumber() const noexcept;
     cfs_stat_info getFileAttributes(const String & relative_path);
     bool canRead(const std::string & path);
     std::optional<size_t> fileSizeSafe(const fs::path & path);
@@ -83,6 +84,6 @@ private:
     std::atomic<bool> broken{false};
     std::atomic<bool> readonly{false};
     UInt64 reserved_bytes = 0;
-    const String disk_checker_path = ".disk_checker_file";
+    //const String disk_checker_path = ".disk_checker_file";
 };
 }

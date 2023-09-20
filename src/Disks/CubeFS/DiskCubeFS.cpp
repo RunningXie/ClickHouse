@@ -26,6 +26,7 @@ namespace ErrorCodes
 }
 
 std::mutex DiskCubeFS::reservation_mutex;
+using DiskCubeFSPtr = std::shared_ptr<DiskCubeFS>;
 
 class DiskCubeFSReservation : public IReservation
 {
@@ -574,25 +575,25 @@ DiskCubeFS::readFile(const String & path, const ReadSettings &, std::optional<si
     return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, O_RDONLY | O_CLOEXEC);
 }
 
-std::optional<UInt32> DiskCubeFS::readDiskCheckerMagicNumber() const noexcept
-{
-    try
-    {
-        auto buf = readFile(disk_checker_path);
-        UInt32 magic_number;
-        readIntBinary(magic_number, *buf);
-        if (buf->eof())
-            return magic_number;
-        LOG_WARNING(logger, "The size of disk check magic number is more than 4 bytes. Mark it as read failure");
-        return {};
-    }
-    catch (...)
-    {
-        tryLogCurrentException(
-            logger, fmt::format("Cannot read correct disk check magic number from from {}{}", disk_path, disk_checker_path));
-        return {};
-    }
-}
+// std::optional<UInt32> DiskCubeFS::readDiskCheckerMagicNumber() const noexcept
+// {
+//     try
+//     {
+//         auto buf = readFile(disk_checker_path);
+//         UInt32 magic_number;
+//         readIntBinary(magic_number, *buf);
+//         if (buf->eof())
+//             return magic_number;
+//         LOG_WARNING(logger, "The size of disk check magic number is more than 4 bytes. Mark it as read failure");
+//         return {};
+//     }
+//     catch (...)
+//     {
+//         tryLogCurrentException(
+//             logger, fmt::format("Cannot read correct disk check magic number from from {}{}", disk_path, disk_checker_path));
+//         return {};
+//     }
+// }
 
 std::unique_ptr<WriteBufferFromFileBase> DiskCubeFS::writeFile(const String & path, size_t buf_size, WriteMode mode)
 {
