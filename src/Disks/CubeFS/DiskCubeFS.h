@@ -1,7 +1,7 @@
 #pragma once
 
 #include <libcfs.h>
-#include <Disks/IDiskRemote.h>
+#include <Disks/IDisk.h>
 
 namespace DB
 {
@@ -88,7 +88,6 @@ private:
     std::atomic<bool> readonly{false};
     UInt64 reserved_bytes = 0;
     //const String disk_checker_path = ".disk_checker_file";
-    UInt64 reserved_bytes = 0;
     UInt64 reservation_count = 0;
 };
 }

@@ -144,7 +144,7 @@ UInt64 DiskCubeFS::getUnreservedSpace() const
 
 bool DiskCubeFS::isFile(const String & path) const
 {
-    cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(settings->id, path);
 
     // 检查文件类型
     if (S_ISREG(stat.mode))
@@ -156,7 +156,7 @@ bool DiskCubeFS::isFile(const String & path) const
 bool DiskCubeFS::isDirectory(const String & path) const
 {
     // 获取文件属性
-    cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(settings->id, path);
 
     // 检查文件类型
     if (S_ISDIR(stat.mode))
@@ -168,7 +168,7 @@ bool DiskCubeFS::isDirectory(const String & path) const
 size_t DiskCubeFS::getFileSize(const String & path) const
 {
     // 获取文件属性
-    cfs_stat_info stat = getFileAttributes(id, path);
+    cfs_stat_info stat = getFileAttributes(settings->id, path);
 
     // 返回文件大小
     return stat.size;
@@ -177,8 +177,8 @@ size_t DiskCubeFS::getFileSize(const String & path) const
 struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path)
 {
     cfs_stat_info stat;
-    fs::path full_path = fs::path(disk_path) / path;
-    int result = cfs_getattr(id, const_cast<char *>(path.c_str()), &stat);
+    fs::path full_path = fs::path(disk_path) / relative_path;
+    int result = cfs_getattr(id, const_cast<char *>(relative_path.c_str()), &stat);
     if (result != 0)
     {
         throwFromErrnoWithPath("Failed to get file attribute: " + full_path.string(), full_path, ErrorCodes::CANNOT_STATVFS);
@@ -188,13 +188,13 @@ struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path)
 
 void DiskCubeFS::createDirectory(const String & path)
 {
-    createDirectories(const String & path);
+    createDirectories(path);
 }
 
 void DiskCubeFS::createDirectories(const String & path)
 {
     fs::path full_path = (fs::path(disk_path) / path);
-    int result = cfs_mkdirs(id, const_cast<char *>(full_path.string().c_str()), 0755);
+    int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), 0755);
     if (result != 0)
     {
         // 处理创建目录失败的情况
@@ -205,18 +205,18 @@ void DiskCubeFS::createDirectories(const String & path)
 
 void DiskCubeFS::clearDirectory(const String & path)
 {
-    std::vector<String> & file_names listFiles(path, file_names);
+    std::vector<String> & file_names =listFiles(path, file_names);
     for (const auto & filename : file_names)
     {
         fs::path file_path = fs::path(full_path / file_name);
 
-        int result = cfs_unlink(id, const_cast<char *>(file_path.string().c_str()));
+        int result = cfs_unlink(settings->id, const_cast<char *>(file_path.string().c_str()));
         if (result < 0)
         {
             throwFromErrnoWithPath("Cannot unlink file: " + file_path.string(), file_path, ErrorCodes::CANNOT_UNLINK);
         }
     }
-    int result = cfs_close(id, fd);
+    int result = cfs_close(settings->id, fd);
     if (result < 0)
     {
         throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
@@ -232,12 +232,12 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
     dirents.data = nullptr;
     dirents.len = 0;
     dirents.cap = 0;
-    fd = cfs_open(id, ".", 0, 0);
+    fd = cfs_open(settings->id, ".", 0, 0);
     if (fd < 0)
     {
         throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
     }
-    int result = cfs_readdir(id, fd, dirents, 0);
+    int result = cfs_readdir(settings->id, fd, dirents, 0);
     if (result < 0)
     {
         throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
@@ -251,7 +251,7 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
         String file_name(d_names[i]);
         file_names.emplace_back(file_names);
     }
-    int result = cfs_close(id, fd);
+    int result = cfs_close(settings->id, fd);
     if (result < 0)
     {
         throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
@@ -262,7 +262,7 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
 void DiskCubeFS::removeFile(const String & path)
 {
     fs::path full_path = (fs::path(disk_path) / path);
-    int result = cfs_unlink(id, const_cast<char *>(full_path.string().c_str()));
+    int result = cfs_unlink(settings->id, const_cast<char *>(full_path.string().c_str()));
 
     if (result != 0)
     {
@@ -351,7 +351,7 @@ DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
 {
     fs::path meta_path = fs::path(disk_path) / path;
     if (!broken && exists(meta_path) && isDirectory(meta_path))
-        return std::make_unique<DiskCubeFSDirectoryIterator>(id, meta_path.string());
+        return std::make_unique<DiskCubeFSDirectoryIterator>(settings->id, meta_path.string());
     else
         return std::make_unique<DiskCubeFSDirectoryIterator>();
 }
@@ -360,7 +360,7 @@ void DiskCubeFS::createFile(const String & path)
 {
     fs::path full_path = fs::path(disk_path) / path;
     int fd = cfs_open(
-        id,
+        settings->id,
         const_cast<char *>(full_path.string().c_str()),
         O_WRONLY | O_CREAT | O_EXCL,
         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
@@ -379,7 +379,7 @@ void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
 {
     fs::path full_from_path = fs::path(disk_path) / from_path;
     fs::path full_to_path = fs::path(disk_path) / to_path;
-    int result = cfs_rename(id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
+    int result = cfs_rename(settings->id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
     if (result != 0)
     {
         throwFromErrnoWithPath(
@@ -403,14 +403,14 @@ void DiskCubeFS::moveFile(const String & from_path, const String & to_path)
 void DiskCubeFS::removeFileIfExists(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
-    if (0 != cfs_unlink(id, const_cast<char *>(fs_path.c_str())) && errno != ENOENT)
+    if (0 != cfs_unlink(settings->id, const_cast<char *>(fs_path.c_str())) && errno != ENOENT)
         throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
 }
 
 void DiskCubeFS::removeDirectory(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
-    if (0 != cfs_rmdir(id, const_cast<char *>(fs_path.c_str())))
+    if (0 != cfs_rmdir(settings->id, const_cast<char *>(fs_path.c_str())))
         throwFromErrnoWithPath("Cannot rmdir " + fs_path.string(), fs_path, ErrorCodes::CANNOT_RMDIR);
 }
 
@@ -424,7 +424,7 @@ void DiskCubeFS::removeRecursive(const String & path)
         {
             std::vector<String> & file_names listFiles(path, file_names);
             std::string childPath = path + "/" + dirent->name;
-            remove_all(id, childPath);
+            remove_all(settings->id, childPath);
         }
         // 删除空目录
         removeDirectory(path);
@@ -444,7 +444,7 @@ void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & ti
     stat.mtime = timestamp.epochTime();
     // 使用 cfs_setattr 函数来设置新的文件属性
     fs::path full_path = fs::path(disk_path) / path;
-    if (cfs_setattr(id, const_cast<char *>(full_path.string().c_str()), &stat, CFS_SET_ATTR_ATIME | CFS_SET_ATTR_MTIME) != 0)
+    if (cfs_setattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat, CFS_SET_ATTR_ATIME | CFS_SET_ATTR_MTIME) != 0)
     {
         throwFromErrnoWithPath("Cannot setattr " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
     }
@@ -467,7 +467,7 @@ void DiskCubeFS::setReadOnly(const String & path)
     // 设置只读权限
     mode_t newMode = stat.mode & ~(S_IWUSR | S_IWGRP | S_IWOTH);
     // 使用 cfs_chmod 函数来更改文件权限
-    if (cfs_fchmod(id, stat.fd, newMode) != 0)
+    if (cfs_fchmod(settings->id, stat.fd, newMode) != 0)
     {
         fs::path full_path = fs::path(disk_path) / path;
         throwFromErrnoWithPath("Cannot fchmod " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
@@ -479,7 +479,7 @@ void DiskCubeFS::createHardLink(const String & src_path, const String & dst_path
     fs::path full_src_path = fs::path(disk_path) / src_path;
     fs::path full_dst_path = fs::path(disk_path) / dst_path;
     // 使用 cfs_link 函数来创建硬链接
-    if (cfs_link(id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
+    if (cfs_link(settings->id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
     {
         auto link_errno = errno;
         if (errno == EEXIST)
