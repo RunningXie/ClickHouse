@@ -1,6 +1,7 @@
 #include <libcfs.h>
 #include "DiskCubeFS.h"
 #include "Disks/DiskFactory.h"
+#include "Disks/DiskRestartProxy.h"
 
 namespace DB
 {
@@ -40,7 +41,7 @@ std::unique_ptr<DiskCubeFSSettings> getSettings(const Poco::Util::AbstractConfig
         config.getString(config_prefix + ".push_addr"));
 }
 
-void setClientInfo(int id, const char * key, const char * value)
+void setClientInfo(int id, const char * key, char * value)
 {
     if (cfs_set_client(id, strdup(key), value) != 0)
     {
@@ -59,13 +60,13 @@ void registerDiskCubeFS(DiskFactory & factory)
     {
         std::unique_ptr<DiskCubeFSSettings> settings = getSettings(config, config_prefix);
         // 设置客户端信息
-        setClientInfo(settings->id, "volName", settings->vol_name.c_str());
-        setClientInfo(settings->id, "masterAddr", settings->master_addr.c_str());
-        setClientInfo(settings->id, "logDir", settings->log_dir.c_str());
-        setClientInfo(settings->id, "logLevel", settings->log_level.c_str());
-        setClientInfo(settings->id, "accessKey", settings->access_key.c_str());
-        setClientInfo(settings->id, "secretKey", settings->secret_key.c_str());
-        setClientInfo(settings->id, "pushAddr", settings->push_addr.c_str());
+        setClientInfo(settings->id, "volName", const_cast<char *>(settings->vol_name.data()));
+        setClientInfo(settings->id, "masterAddr", const_cast<char *>(settings->master_addr.data()));
+        setClientInfo(settings->id, "logDir", const_cast<char *>(settings->log_dir.data()));
+        setClientInfo(settings->id, "logLevel", const_cast<char *>(settings->log_level.data()));
+        setClientInfo(settings->id, "accessKey", const_cast<char *>(settings->access_key.data()));
+        setClientInfo(settings->id, "secretKey", const_cast<char *>(settings->secret_key.data()));
+        setClientInfo(settings->id, "pushAddr", const_cast<char *>(settings->push_addr.data()));
 
         std::shared_ptr<IDisk> cubeFSdisk
             = std::make_shared<DiskCubeFS>(name, config.getString(config_prefix + ".path", ""), context, settings);

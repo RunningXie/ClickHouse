@@ -1,10 +1,507 @@
 #include "DiskCubeFS.h"
 #include <libcfs.h>
+#include <IO/ReadBufferFromBase.h>
+#include <IO/ReadBufferFromCubeFS.h>
+#include <IO/WriteBufferFromBase.h>
+#include <IO/WriteBufferFromCubeFS.h>
 
 namespace DB
 {
-DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr context_, SettingsPtr settings_)
-    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS"), settings(settings_))
+
+namespace ErrorCodes
+{
+    extern const int UNKNOWN_ELEMENT_IN_CONFIG;
+    extern const int EXCESSIVE_ELEMENT_IN_CONFIG;
+    extern const int PATH_ACCESS_DENIED;
+    extern const int LOGICAL_ERROR;
+    extern const int CANNOT_TRUNCATE_FILE;
+    extern const int CANNOT_UNLINK;
+    extern const int CANNOT_RMDIR;
+    extern const int BAD_ARGUMENTS;
+    extern const int CANNOT_CREATE_DIRECTORY;
+    extern const int CANNOT_STATVFS;
+    extern const int CANNOT_OPEN_FILE;
+    extern const int CANNOT_READ_FROM_FILE_DESCRIPTOR;
+    extern const int CANNOT_CLOSE_FILE;
+    extern const int ATOMIC_RENAME_FAIL;
+}
+
+std::mutex DiskCubeFS::reservation_mutex;
+
+class DiskCubeFSReservation : public IReservation
+{
+public:
+    DiskCubeFSReservation(const DiskCubeFSPtr & disk_, UInt64 size_)
+        : disk(disk_), size(size_), metric_increment(CurrentMetrics::DiskSpaceReservedForMerge, size_)
+    {
+    }
+
+    UInt64 getSize() const override { return size; }
+
+    DiskPtr getDisk(size_t i) const override
+    {
+        if (i != 0)
+            throw Exception("Can't use i != 0 with single disk reservation. It's a bug", ErrorCodes::LOGICAL_ERROR);
+        return disk;
+    }
+
+    Disks getDisks() const override { return {disk}; }
+
+    void update(UInt64 new_size) override
+    {
+        std::lock_guard lock(DiskCubeFS::reservation_mutex);
+        disk->reserved_bytes -= size;
+        size = new_size;
+        disk->reserved_bytes += size;
+    }
+
+    ~DiskCubeFSReservation() override
+    {
+        try
+        {
+            std::lock_guard lock(DiskCubeFS::reservation_mutex);
+            if (disk->reserved_bytes < size)
+            {
+                disk->reserved_bytes = 0;
+                LOG_ERROR(&Poco::Logger::get("DiskCubeFS"), "Unbalanced reservations size for disk '{}'.", disk->getName());
+            }
+            else
+            {
+                disk->reserved_bytes -= size;
+            }
+
+            if (disk->reservation_count == 0)
+                LOG_ERROR(&Poco::Logger::get("DiskCubeFS"), "Unbalanced reservation count for disk '{}'.", disk->getName());
+            else
+                --disk->reservation_count;
+        }
+        catch (...)
+        {
+            tryLogCurrentException(__PRETTY_FUNCTION__);
+        }
+    }
+
+private:
+    DiskCubeFSPtr disk;
+    UInt64 size;
+    CurrentMetrics::Increment metric_increment;
+};
+
+
+ReservationPtr DiskCubeFS::reserve(UInt64 bytes)
+{
+    if (!tryReserve(bytes))
+        return {};
+    return std::make_unique<DiskCubeFSReservation>(std::static_pointer_cast<DiskCubeFS>(shared_from_this()), bytes);
+}
+
+bool DiskCubeFS::tryReserve(UInt64 bytes)
+{
+    std::lock_guard lock(DiskCubeFS::reservation_mutex);
+    if (bytes == 0)
+    {
+        LOG_DEBUG(log, "Reserving 0 bytes on disk {}", backQuote(name));
+        ++reservation_count;
+        return true;
+    }
+
+    auto available_space = getTotalSpace();
+    UInt64 unreserved_space = available_space - std::min(available_space, reserved_bytes);
+    if (unreserved_space >= bytes)
+    {
+        LOG_DEBUG(
+            log, "Reserving {} on disk {}, having unreserved {}.", ReadableSize(bytes), backQuote(name), ReadableSize(unreserved_space));
+        ++reservation_count;
+        reserved_bytes += bytes;
+        return true;
+    }
+    return false;
+}
+
+UInt64 DiskCubeFS::getTotalSpace() const
+{
+    if (broken || readonly)
+        return 0;
+
+    UInt64 total_size = static_cast<UInt64>(getFileSize(""));
+    if (total_size < keep_free_space_bytes)
+        return 0;
+    return total_size - keep_free_space_bytes;
+}
+
+UInt64 DiskCubeFS::getUnreservedSpace() const
+{
+    std::lock_guard lock(DiskCubeFS::reservation_mutex);
+    auto available_space = getTotalSpace();
+    available_space -= std::min(available_space, reserved_bytes);
+    return available_space;
+}
+
+bool DiskCubeFS::isFile(const String & path) const
+{
+    struct cfs_stat_info stat = getFileAttributes(id, path);
+
+    // 检查文件类型
+    if (S_ISREG(stat.mode))
+        return true;
+
+    return false;
+}
+
+bool DiskCubeFS::isDirectory(const String & path) const
+{
+    // 获取文件属性
+    struct cfs_stat_info stat = getFileAttributes(id, path);
+
+    // 检查文件类型
+    if (S_ISDIR(stat.mode))
+        return true;
+
+    return false;
+}
+
+size_t DiskCubeFS::getFileSize(const String & path) const
+{
+    // 获取文件属性
+    struct cfs_stat_info stat = getFileAttributes(id, path);
+
+    // 返回文件大小
+    return stat.size;
+}
+
+struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path)
+{
+    struct cfs_stat_info stat;
+    fs::path full_path = fs::path(disk_path) / path;
+    int result = cfs_getattr(id, const_cast<char *>(path.c_str()), &stat);
+    if (result != 0)
+    {
+        throwFromErrnoWithPath("Failed to get file attribute: " + full_path.string(), full_path, ErrorCodes::CANNOT_STATVFS);
+    }
+    return stat;
+}
+
+void DiskCubeFS::createDirectory(const String & path)
+{
+    createDirectories(const String & path);
+}
+
+void DiskCubeFS::createDirectories(const String & path)
+{
+    fs::path full_path = (fs::path(disk_path) / path);
+    int result = cfs_mkdirs(id, const_cast<char *>(full_path.string().c_str()), 0755);
+    if (result != 0)
+    {
+        // 处理创建目录失败的情况
+        // 返回适当的错误码或执行其他操作
+        throwFromErrnoWithPath("Cannot mkdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_CREATE_DIRECTORY);
+    }
+}
+
+void DiskCubeFS::clearDirectory(const String & path)
+{
+    std::vector<String> & file_names listFiles(path, file_names);
+    for (const auto & filename : file_names)
+    {
+        fs::path file_path = fs::path(full_path / file_name);
+
+        int result = cfs_unlink(id, const_cast<char *>(file_path.string().c_str()));
+        if (result < 0)
+        {
+            throwFromErrnoWithPath("Cannot unlink file: " + file_path.string(), file_path, ErrorCodes::CANNOT_UNLINK);
+        }
+    }
+    int result = cfs_close(id, fd);
+    if (result < 0)
+    {
+        throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
+    }
+}
+
+void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names)
+{
+    file_names.clear();
+    fs::path full_path = (fs::path(disk_path) / path);
+    int fd = -1;
+    GoSlice dirents;
+    dirents.data = nullptr;
+    dirents.len = 0;
+    dirents.cap = 0;
+    fd = cfs_open(id, ".", 0, 0);
+    if (fd < 0)
+    {
+        throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
+    }
+    int result = cfs_readdir(id, fd, dirents, 0);
+    if (result < 0)
+    {
+        throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+    }
+
+    char ** d_names = static_cast<char **>(dirents.data);
+    int count = dirents.len;
+    file_names.resize(count);
+    for (int i = 0; i < count; ++i)
+    {
+        String file_name(d_names[i]);
+        file_names.emplace_back(file_names);
+    }
+    int result = cfs_close(id, fd);
+    if (result < 0)
+    {
+        throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
+    }
+}
+
+
+void DiskCubeFS::removeFile(const String & path)
+{
+    fs::path full_path = (fs::path(disk_path) / path);
+    int result = cfs_unlink(id, const_cast<char *>(full_path.string().c_str()));
+
+    if (result != 0)
+    {
+        // 根据需要进行错误处理
+        throwFromErrnoWithPath("Cannot unlink file: " + full_path.string(), full_path, ErrorCodes::CANNOT_UNLINK);
+    }
+}
+
+void DiskCubeFS::moveDirectory(const String & from_path, const String & to_path)
+{
+    moveFile(const String & from_path, const String & to_path);
+}
+
+class DiskCubeFSDirectoryIterator final : public IDiskDirectoryIterator
+{
+public:
+    DiskCubeFSDirectoryIterator() : id(-1), fd(-1), current_index(0) { }
+    DiskCubeFSDirectoryIterator(int64_t client_id, const String & path) : id(client_id), dir_path(path), fd(-1), current_index(0)
+    {
+        openDirectory();
+    }
+
+    ~DiskCubeFSDirectoryIterator() { closeDirectory(); }
+
+    void next() override { ++current_index; }
+
+    bool isValid() const override { return current_index < dirents.size(); }
+
+    String path() const override
+    {
+        if (isValid())
+            return dir_path + "/" + dirents[current_index];
+        else
+            return "";
+    }
+
+    String name() const override
+    {
+        if (isValid())
+            return dirents[current_index];
+        else
+            return "";
+    }
+
+private:
+    int64_t id;
+    String dir_path;
+    int fd;
+    std::vector<String> dirents;
+    size_t current_index;
+
+    void openDirectory()
+    {
+        fd = cfs_open(id, const_cast<char *>(dir_path.c_str()), O_RDONLY | O_DIRECTORY, 0755);
+        if (fd < 0)
+        {
+            throwFromErrnoWithPath("Cannot open: " + dir_path, fs::path(full_path), ErrorCodes::CANNOT_OPEN_FILE);
+        }
+        GoSlice dirents_slice;
+        int result = cfs_readdir(id, fd, dirents_slice, 0);
+        if (result < 0)
+        {
+            throwFromErrnoWithPath("Cannot readdir: " + dir_path, fs::path(full_path), ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+        }
+        dirents.resize(dirents_slice.len);
+        for (size_t i = 0; i < dirents_slice.len; ++i)
+        {
+            char * entry = static_cast<char *>(dirents_slice.data);
+            dirents[i] = entry;
+        }
+    }
+
+    void closeDirectory()
+    {
+        if (fd < 0)
+            return;
+        int result = cfs_close(id, fd);
+        if (result < 0)
+        {
+            throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
+        }
+    }
+};
+
+DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
+{
+    fs::path meta_path = fs::path(disk_path) / path;
+    if (!broken && exists(meta_path) && isDirectory(meta_path))
+        return std::make_unique<DiskCubeFSDirectoryIterator>(id, meta_path.string());
+    else
+        return std::make_unique<DiskCubeFSDirectoryIterator>();
+}
+
+void DiskCubeFS::createFile(const String & path)
+{
+    fs::path full_path = fs::path(disk_path) / path;
+    int fd = cfs_open(
+        id,
+        const_cast<char *>(full_path.string().c_str()),
+        O_WRONLY | O_CREAT | O_EXCL,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (fd < 0)
+    {
+        throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
+    }
+    int result = cfs_close(id, fd);
+    if (result < 0)
+    {
+        throwFromErrnoWithPath("Cannot close file: " + full_path.string(), full_path, ErrorCodes::CANNOT_CLOSE_FILE);
+    }
+}
+
+void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
+{
+    fs::path full_from_path = fs::path(disk_path) / from_path;
+    fs::path full_to_path = fs::path(disk_path) / to_path;
+    int result = cfs_rename(id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
+    if (result != 0)
+    {
+        throwFromErrnoWithPath(
+            "Failed to rename file, from path: " + full_from_path.string() + "to path: ",
+            full_to_path.string(),
+            "",
+            ErrorCodes::ATOMIC_RENAME_FAIL);
+    }
+}
+
+void DiskCubeFS::moveFile(const String & from_path, const String & to_path)
+{
+    // 检查目标路径是否存在文件
+    if (exists(to_path))
+    {
+        throw std::filesystem::filesystem_error("Destination file: " + (fs::path(disk_path) / to_path).string() + "already exists.");
+    }
+    replaceFile(from_path, to_path);
+}
+
+void DiskCubeFS::removeFileIfExists(const String & path)
+{
+    auto fs_path = fs::path(disk_path) / path;
+    if (0 != cfs_unlink(id, const_cast<char *>(fs_path.c_str())) && errno != ENOENT)
+        throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
+}
+
+void DiskCubeFS::removeDirectory(const String & path)
+{
+    auto fs_path = fs::path(disk_path) / path;
+    if (0 != cfs_rmdir(id, const_cast<char *>(fs_path.c_str())))
+        throwFromErrnoWithPath("Cannot rmdir " + fs_path.string(), fs_path, ErrorCodes::CANNOT_RMDIR);
+}
+
+void DiskCubeFS::removeRecursive(const String & path)
+{
+    struct cfs_stat_info stat = getFileAttributes(path);
+    if (S_ISDIR(stat.mode))
+    {
+        std::vector<String> & file_names listFiles(path, file_names);
+        for (const auto & filename : file_names)
+        {
+            std::vector<String> & file_names listFiles(path, file_names);
+            std::string childPath = path + "/" + dirent->name;
+            remove_all(id, childPath);
+        }
+        // 删除空目录
+        removeDirectory(path);
+    }
+    else
+    {
+        // 文件
+        removeFile(path);
+    }
+}
+
+void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & timestamp)
+{
+    FS::setModificationTime(fs::path(disk_path) / path, timestamp.epochTime());
+    struct stat = getFileAttributes(const String & path);
+    stat.atime = timestamp.epochTime();
+    stat.mtime = timestamp.epochTime();
+    // 使用 cfs_setattr 函数来设置新的文件属性
+    fs::path full_path = fs::path(disk_path) / path;
+    if (cfs_setattr(id, const_cast<char *>(full_path.string().c_str()), &stat, CFS_SET_ATTR_ATIME | CFS_SET_ATTR_MTIME) != 0)
+    {
+        throwFromErrnoWithPath("Cannot setattr " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
+    }
+}
+
+Poco::Timestamp DiskCubeFS::getLastModified(const String & path)
+{
+    return FS::getModificationTimestamp(getLastChanged(path));
+}
+
+time_t DiskCubeFS::getLastChanged(const String & path) const
+{
+    cfs_stat_info stat = getFileAttributes(path);
+    return stat.ctime;
+}
+
+void DiskCubeFS::setReadOnly(const String & path)
+{
+    cfs_stat_info stat = getFileAttributes(path);
+    // 设置只读权限
+    mode_t newMode = stat.mode & ~(S_IWUSR | S_IWGRP | S_IWOTH);
+    // 使用 cfs_chmod 函数来更改文件权限
+    if (cfs_fchmod(id, stat.fd, newMode) != 0)
+    {
+        fs::path full_path = fs::path(disk_path) / path;
+        throwFromErrnoWithPath("Cannot fchmod " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
+    }
+}
+
+void DiskCubeFS::createHardLink(const String & src_path, const String & dst_path)
+{
+    fs::path full_src_path = fs::path(disk_path) / src_path;
+    fs::path full_dst_path = fs::path(disk_path) / dst_path;
+    // 使用 cfs_link 函数来创建硬链接
+    if (cfs_link(id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
+    {
+        auto link_errno = errno;
+        if (errno == EEXIST)
+        {
+            // 目标链接已存在，进行进一步的检查
+            struct cfs_stat_info source_stat = getFileAttributes(src_path);
+            struct cfs_stat_info destination_stat = getFileAttributes(dst_path);
+            // 检查源文件和目标链接的 inode 是否相同
+            if (source_stat.ino != destination_stat.ino)
+            {
+                throwFromErrnoWithPath(
+                    "Destination file " + destination_path.string() + " is already exist and have different inode.",
+                    destination_path,
+                    ErrorCodes::CANNOT_LINK,
+                    link_errno);
+            }
+        }
+        else
+        {
+            throwFromErrnoWithPath(
+                "Cannot link " + full_src_path.string() + " to " + full_dst_path.string(), destination_path, ErrorCodes::CANNOT_LINK);
+        }
+    }
+}
+
+DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
+    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS"), settings(std::move(settings_)))
 {
 }
 
@@ -30,22 +527,19 @@ DiskCubeFSSettings ::DiskCubeFSSettings(
 
 bool DiskCubeFS::canRead(const std::string & path)
 {
-    struct cfs_stat_info stat;
-    if (cfs_getattr(settings->id, const_cast<char *>(path.c_str()), &stat) == 0)
-    {
-        if (stat.uid == geteuid())
-            return (stat.mode & S_IRUSR) != 0;
-        else if (stat.gid == getegid())
-            return (stat.mode & S_IRGRP) != 0;
-        else
-            return (stat.mode & S_IROTH) != 0 || geteuid() == 0;
-    }
-    DB::throwFromErrnoWithPath("Cannot check read access to file: " + path, path, DB::ErrorCodes::PATH_ACCESS_DENIED);
+    struct cfs_stat_info stat = getFileAttributes(path);
+    if (stat.uid == geteuid())
+        return (stat.mode & S_IRUSR) != 0;
+    else if (stat.gid == getegid())
+        return (stat.mode & S_IRGRP) != 0;
+    else
+        return (stat.mode & S_IROTH) != 0 || geteuid() == 0;
 }
 
 bool DiskCubeFS::exists(const String & path) const
 {
     String full_path = disk_path + "/" + path;
+    struct cfs_stat_info stat;
     int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
     return (result == 0);
 }
@@ -57,7 +551,7 @@ std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
 
     if (result == 0)
     {
-        return stat.st_size;
+        return stat.size;
     }
     else if (result == -ENOENT || result == -ENOTDIR)
     {
@@ -70,18 +564,16 @@ std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
     }
 }
 
-std::unique_ptr<ReadBufferFromFileBase> DiskCubeFS::readFile(
-    const String & path, const ReadSettings & settings, std::optional<size_t> read_hint, std::optional<size_t> file_size) const
+std::unique_ptr<ReadBufferFromFileBase> DiskCubeFS::readFile(const String & path) const
 {
-    return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, flags);
+    return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, O_RDONLY | O_CLOEXEC);
 }
 
 std::optional<UInt32> DiskCubeFS::readDiskCheckerMagicNumber() const noexcept
 {
     try
     {
-        ReadSettings read_settings;
-        auto buf = readFile(disk_checker_path, read_settings, {}, {});
+        auto buf = readFile(disk_checker_path);
         UInt32 magic_number;
         readIntBinary(magic_number, *buf);
         if (buf->eof())
