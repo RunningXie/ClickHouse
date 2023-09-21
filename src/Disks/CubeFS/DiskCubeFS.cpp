@@ -4,6 +4,12 @@
 #include <IO/WriteBufferFromCubeFS.h>
 #include <IO/WriteBufferFromFileBase.h>
 
+namespace CurrentMetrics
+{
+extern const Metric DiskSpaceReservedForMerge;
+}
+
+
 namespace DB
 {
 
@@ -178,7 +184,7 @@ struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path)
 {
     cfs_stat_info stat;
     fs::path full_path = fs::path(disk_path) / relative_path;
-    int result = cfs_getattr(id, const_cast<char *>(relative_path.c_str()), &stat);
+    int result = cfs_getattr(settings->id, const_cast<char *>(relative_path.c_str()), &stat);
     if (result != 0)
     {
         throwFromErrnoWithPath("Failed to get file attribute: " + full_path.string(), full_path, ErrorCodes::CANNOT_STATVFS);
@@ -193,7 +199,7 @@ void DiskCubeFS::createDirectory(const String & path)
 
 void DiskCubeFS::createDirectories(const String & path)
 {
-    fs::path full_path = (fs::path(disk_path) / path);
+    fs::path full_path = fs::path(disk_path) / path;
     int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), 0755);
     if (result != 0)
     {
@@ -205,21 +211,17 @@ void DiskCubeFS::createDirectories(const String & path)
 
 void DiskCubeFS::clearDirectory(const String & path)
 {
-    std::vector<String> & file_names =listFiles(path, file_names);
+    std::vector<String> file_names;
+    listFiles(path, &file_names);
     for (const auto & filename : file_names)
     {
-        fs::path file_path = fs::path(full_path / file_name);
+        fs::path file_path = fs::path(disk_path / filename);
 
         int result = cfs_unlink(settings->id, const_cast<char *>(file_path.string().c_str()));
         if (result < 0)
         {
             throwFromErrnoWithPath("Cannot unlink file: " + file_path.string(), file_path, ErrorCodes::CANNOT_UNLINK);
         }
-    }
-    int result = cfs_close(settings->id, fd);
-    if (result < 0)
-    {
-        throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
     }
 }
 
@@ -232,13 +234,13 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
     dirents.data = nullptr;
     dirents.len = 0;
     dirents.cap = 0;
-    fd = cfs_open(settings->id, ".", 0, 0);
+    fd = cfs_open(settings->id, '.', 0, 0);
     if (fd < 0)
     {
         throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
     }
-    int result = cfs_readdir(settings->id, fd, dirents, 0);
-    if (result < 0)
+    int read_result = cfs_readdir(settings->id, fd, dirents, 0);
+    if (read_result < 0)
     {
         throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
     }
@@ -251,10 +253,10 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
         String file_name(d_names[i]);
         file_names.emplace_back(file_names);
     }
-    int result = cfs_close(settings->id, fd);
-    if (result < 0)
+    int close_result = cfs_close(settings->id, fd);
+    if (close_result < 0)
     {
-        throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
+        throwFromErrnoWithPath("Cannot close file: " + full_path.string(), full_path, ErrorCodes::CANNOT_CLOSE_FILE);
     }
 }
 
@@ -273,7 +275,7 @@ void DiskCubeFS::removeFile(const String & path)
 
 void DiskCubeFS::moveDirectory(const String & from_path, const String & to_path)
 {
-    moveFile(const String & from_path, const String & to_path);
+    moveFile( from_path,  to_path);
 }
 
 class DiskCubeFSDirectoryIterator final : public IDiskDirectoryIterator
@@ -342,7 +344,7 @@ private:
         int result = cfs_close(id, fd);
         if (result < 0)
         {
-            throwFromErrnoWithPath("Cannot close file: " + file_path.string(), file_path, ErrorCodes::CANNOT_CLOSE_FILE);
+            throwFromErrnoWithPath("Cannot close file: " + dir_path, fs::path(dir_path), ErrorCodes::CANNOT_CLOSE_FILE);
         }
     }
 };
@@ -419,10 +421,10 @@ void DiskCubeFS::removeRecursive(const String & path)
     cfs_stat_info stat = getFileAttributes(path);
     if (S_ISDIR(stat.mode))
     {
-        std::vector<String> & file_names listFiles(path, file_names);
+        std::vector<String> file_names;
+        listFiles(path, &file_names);
         for (const auto & filename : file_names)
         {
-            std::vector<String> & file_names listFiles(path, file_names);
             std::string childPath = path + "/" + dirent->name;
             remove_all(settings->id, childPath);
         }

@@ -19,7 +19,7 @@ int64_t getClientId()
     return id;
 }
 
-std::unique_ptr<DiskCubeFSSettings> getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
 {
     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "volumn name: {}", config.getString(config_prefix + ".vol_name"));
     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "master address: {}", config.getString(config_prefix + ".master_addr"));
@@ -57,7 +57,6 @@ void registerDiskCubeFS(DiskFactory & factory)
                       ContextPtr context,
                       const DisksMap & /*map*/) -> DiskPtr
     {
-        std::unique_ptr<DiskCubeFSSettings> settings = getSettings(config, config_prefix);
         // 设置客户端信息
         setClientInfo(settings->id, "volName", const_cast<char *>(settings->vol_name.data()));
         setClientInfo(settings->id, "masterAddr", const_cast<char *>(settings->master_addr.data()));
@@ -67,8 +66,8 @@ void registerDiskCubeFS(DiskFactory & factory)
         setClientInfo(settings->id, "secretKey", const_cast<char *>(settings->secret_key.data()));
         setClientInfo(settings->id, "pushAddr", const_cast<char *>(settings->push_addr.data()));
 
-        std::shared_ptr<IDisk> cubeFSdisk
-            = std::make_shared<DiskCubeFS>(name, config.getString(config_prefix + ".path", ""), context, settings);
+        std::shared_ptr<IDisk> cubeFSdisk = std::make_shared<DiskCubeFS>(
+            name, config.getString(config_prefix + ".path", ""), context, getSettings(config, config_prefix));
         return std::make_shared<DiskRestartProxy>( cubeFSdisk);
     };
     factory.registerDiskType("cubefs", creator);
