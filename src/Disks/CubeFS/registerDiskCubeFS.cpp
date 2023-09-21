@@ -57,6 +57,7 @@ void registerDiskCubeFS(DiskFactory & factory)
                       ContextPtr context,
                       const DisksMap & /*map*/) -> DiskPtr
     {
+       auto settings= getSettings(config, config_prefix);
         // 设置客户端信息
         setClientInfo(settings->id, "volName", const_cast<char *>(settings->vol_name.data()));
         setClientInfo(settings->id, "masterAddr", const_cast<char *>(settings->master_addr.data()));
