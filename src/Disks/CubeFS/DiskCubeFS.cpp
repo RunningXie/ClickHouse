@@ -3,6 +3,7 @@
 #include <IO/ReadBufferFromFileBase.h>
 #include <IO/WriteBufferFromCubeFS.h>
 #include <IO/WriteBufferFromFileBase.h>
+#include <Common/filesystemHelpers.h>
 
 namespace CurrentMetrics
 {
@@ -32,6 +33,8 @@ namespace ErrorCodes
     extern const int FILE_ALREADY_EXISTS;
 }
 
+constexpr uint32_t AttrModifyTime = 1 << 3;
+constexpr uint32_t AttrAccessTime = 1 << 4;
 std::mutex DiskCubeFS::reservation_mutex;
 using DiskCubeFSPtr = std::shared_ptr<DiskCubeFS>;
 
@@ -181,7 +184,7 @@ size_t DiskCubeFS::getFileSize(const String & path) const
     return stat.size;
 }
 
-struct cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
+cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
 {
     cfs_stat_info stat;
     fs::path full_path = fs::path(disk_path) / relative_path;
@@ -252,7 +255,7 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
     for (int i = 0; i < count; ++i)
     {
         String file_name(d_names[i]);
-        file_names.emplace_back(file_names);
+        file_names.emplace_back(file_name);
     }
     cfs_close(settings->id, fd);
 }
@@ -430,12 +433,12 @@ void DiskCubeFS::removeRecursive(const String & path)
 void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & timestamp)
 {
     FS::setModificationTime(fs::path(disk_path) / path, timestamp.epochTime());
-    struct stat = getFileAttributes(path);
+    cfs_stat_info stat = getFileAttributes(path);
     stat.atime = timestamp.epochTime();
     stat.mtime = timestamp.epochTime();
     // 使用 cfs_setattr 函数来设置新的文件属性
     fs::path full_path = fs::path(disk_path) / path;
-    if (cfs_setattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat, CFS_SET_ATTR_ATIME | CFS_SET_ATTR_MTIME) != 0)
+    if (cfs_setattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat, AttrModifyTime | AttrAccessTime) != 0)
     {
         throwFromErrnoWithPath("Cannot setattr " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
     }
@@ -455,54 +458,61 @@ time_t DiskCubeFS::getLastChanged(const String & path) const
 void DiskCubeFS::setReadOnly(const String & path)
 {
     cfs_stat_info stat = getFileAttributes(path);
+    fs::path full_path = fs::path(disk_path) / path;
+    int fd = cfs_open(settings->id, const_cast<char *>(full_path.string().c_str()), 0, 0);
+    if (fd < 0)
+    {
+        throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
+    }
     // 设置只读权限
     mode_t newMode = stat.mode & ~(S_IWUSR | S_IWGRP | S_IWOTH);
     // 使用 cfs_chmod 函数来更改文件权限
-    if (cfs_fchmod(settings->id, stat.fd, newMode) != 0)
+    if (cfs_fchmod(settings->id, fd, newMode) != 0)
     {
         fs::path full_path = fs::path(disk_path) / path;
         throwFromErrnoWithPath("Cannot fchmod " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
     }
 }
 
-void DiskCubeFS::createHardLink(const String & src_path, const String & dst_path)
+void DiskCubeFS::createHardLink(const String &, const String &)
 {
-    fs::path full_src_path = fs::path(disk_path) / src_path;
-    fs::path full_dst_path = fs::path(disk_path) / dst_path;
-    // 使用 cfs_link 函数来创建硬链接
-    if (cfs_link(settings->id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
-    {
-        auto link_errno = errno;
-        if (errno == EEXIST)
-        {
-            // 目标链接已存在，进行进一步的检查
-            struct cfs_stat_info source_stat = getFileAttributes(src_path);
-            struct cfs_stat_info destination_stat = getFileAttributes(dst_path);
-            // 检查源文件和目标链接的 inode 是否相同
-            if (source_stat.ino != destination_stat.ino)
-            {
-                throwFromErrnoWithPath(
-                    "Destination file " + destination_path.string() + " is already exist and have different inode.",
-                    destination_path,
-                    ErrorCodes::CANNOT_LINK,
-                    link_errno);
-            }
-        }
-        else
-        {
-            throwFromErrnoWithPath(
-                "Cannot link " + full_src_path.string() + " to " + full_dst_path.string(), destination_path, ErrorCodes::CANNOT_LINK);
-        }
-    }
+    LOG_DEBUG(logger, "Need create hard link function!");
+    // fs::path full_src_path = fs::path(disk_path) / src_path;
+    // fs::path full_dst_path = fs::path(disk_path) / dst_path;
+    // // 使用 cfs_link 函数来创建硬链接
+    // if (cfs_link(settings->id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
+    // {
+    //     auto link_errno = errno;
+    //     if (errno == EEXIST)
+    //     {
+    //         // 目标链接已存在，进行进一步的检查
+    //         cfs_stat_info source_stat = getFileAttributes(src_path);
+    //         cfs_stat_info destination_stat = getFileAttributes(dst_path);
+    //         // 检查源文件和目标链接的 inode 是否相同
+    //         if (source_stat.ino != destination_stat.ino)
+    //         {
+    //             throwFromErrnoWithPath(
+    //                 "Destination file " + destination_path.string() + " is already exist and have different inode.",
+    //                 destination_path,
+    //                 ErrorCodes::CANNOT_LINK,
+    //                 link_errno);
+    //         }
+    //     }
+    //     else
+    //     {
+    //         throwFromErrnoWithPath(
+    //             "Cannot link " + full_src_path.string() + " to " + full_dst_path.string(), destination_path, ErrorCodes::CANNOT_LINK);
+    //     }
+    // }
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
-    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS"), settings(std::move(settings_)))
+    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS")), settings(std::move(settings_))
 {
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
-    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS"), settings(std::move(settings_)))
+    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS")), settings(std::move(settings_))
 {
 }
 

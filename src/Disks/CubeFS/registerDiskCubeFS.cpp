@@ -19,7 +19,7 @@ int64_t getClientId()
     return id;
 }
 
-SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+DiskCubeFS::SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
 {
     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "volumn name: {}", config.getString(config_prefix + ".vol_name"));
     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "master address: {}", config.getString(config_prefix + ".master_addr"));

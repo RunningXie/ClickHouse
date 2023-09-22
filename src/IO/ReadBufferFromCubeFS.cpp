@@ -121,4 +121,79 @@ ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file
         throwFromErrnoWithPath(
             "Cannot open file " + file_name_, file_name_, errno == ENOENT ? ErrorCodes::FILE_DOESNT_EXIST : ErrorCodes::CANNOT_OPEN_FILE);
 }
+
+/// If 'offset' is small enough to stay in buffer after seek, then true seek in file does not happen.
+off_t ReadBufferFromCubeFS::seek(off_t offset, int whence)
+{
+    size_t new_pos;
+    if (whence == SEEK_SET)
+    {
+        assert(offset >= 0);
+        new_pos = offset;
+    }
+    else if (whence == SEEK_CUR)
+    {
+        new_pos = file_offset_of_buffer_end - (working_buffer.end() - pos) + offset;
+    }
+    else
+    {
+        throw Exception("ReadBufferFromFileDescriptor::seek expects SEEK_SET or SEEK_CUR as whence", ErrorCodes::ARGUMENT_OUT_OF_BOUND);
+    }
+
+    /// Position is unchanged.
+    if (new_pos + (working_buffer.end() - pos) == file_offset_of_buffer_end)
+        return new_pos;
+
+    if (file_offset_of_buffer_end - working_buffer.size() <= static_cast<size_t>(new_pos) && new_pos <= file_offset_of_buffer_end)
+    {
+        /// Position is still inside the buffer.
+        /// Probably it is at the end of the buffer - then we will load data on the following 'next' call.
+
+        pos = working_buffer.end() - file_offset_of_buffer_end + new_pos;
+        assert(pos >= working_buffer.begin());
+        assert(pos <= working_buffer.end());
+
+        return new_pos;
+    }
+    else
+    {
+        /// Position is out of the buffer, we need to do real seek.
+        off_t seek_pos = required_alignment > 1 ? new_pos / required_alignment * required_alignment : new_pos;
+
+        off_t offset_after_seek_pos = new_pos - seek_pos;
+
+        /// First reset the buffer so the next read will fetch new data to the buffer.
+        resetWorkingBuffer();
+
+        /// In case of using 'pread' we just update the info about the next position in file.
+        /// In case of using 'read' we call 'lseek'.
+
+        /// We account both cases as seek event as it leads to non-contiguous reads from file.
+        ProfileEvents::increment(ProfileEvents::Seek);
+
+
+        //Stopwatch watch(profile_callback ? clock_type : CLOCK_MONOTONIC);
+        ssize_t res = cfs_read(id, fd, nullptr, 0, offset);
+        if (res < 0)
+        {
+            // 处理文件读取失败的情况
+            throwFromErrnoWithPath("Cannot seek through file " + getFileName(), getFileName(), ErrorCodes::CANNOT_SEEK_THROUGH_FILE);
+        }
+        /// Also note that seeking past the file size is not allowed.
+        if (res != seek_pos)
+            throw Exception(
+                ErrorCodes::CANNOT_SEEK_THROUGH_FILE, "The 'lseek' syscall returned value ({}) that is not expected ({})", res, seek_pos);
+
+        // watch.stop();
+        //ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
+
+
+        file_offset_of_buffer_end = seek_pos;
+
+        if (offset_after_seek_pos > 0)
+            ignore(offset_after_seek_pos);
+
+        return seek_pos;
+    }
+}
 }

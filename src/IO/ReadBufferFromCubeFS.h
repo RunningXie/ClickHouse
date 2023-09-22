@@ -30,6 +30,8 @@ public:
     void setFD(int fd_) { fd = fd_; }
     int getFD() const { return fd; }
     off_t size();
+        /// If 'offset' is small enough to stay in buffer after seek, then true seek in file does not happen.
+    off_t seek(off_t off, int whence) override;
 
 private:
     bool nextImpl() override;
