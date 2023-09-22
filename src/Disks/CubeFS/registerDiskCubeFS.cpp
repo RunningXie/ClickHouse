@@ -49,7 +49,7 @@ void setClientInfo(int id, const char * key, char * value)
     }
 }
 
-void registerDiskCubeFS(DiskFactory & factory)
+void registerDiskCubeFS(DiskFactory & factory) //方法声明直接写在了registerDisks.cpp里了
 {
     auto creator = [](const String & name,
                       const Poco::Util::AbstractConfiguration & config,
