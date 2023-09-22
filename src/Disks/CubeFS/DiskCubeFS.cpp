@@ -446,7 +446,7 @@ void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & ti
 
 Poco::Timestamp DiskCubeFS::getLastModified(const String & path)
 {
-    return FS::getModificationTimestamp(getLastChanged(path));
+    return Poco::Timestamp::fromEpochTime(getLastChanged(path));
 }
 
 time_t DiskCubeFS::getLastChanged(const String & path) const
@@ -469,7 +469,6 @@ void DiskCubeFS::setReadOnly(const String & path)
     // 使用 cfs_chmod 函数来更改文件权限
     if (cfs_fchmod(settings->id, fd, newMode) != 0)
     {
-        fs::path full_path = fs::path(disk_path) / path;
         throwFromErrnoWithPath("Cannot fchmod " + full_path.string(), full_path, ErrorCodes::LOGICAL_ERROR);
     }
 }
@@ -507,12 +506,12 @@ void DiskCubeFS::createHardLink(const String &, const String &)
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
-    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS")), settings(std::move(settings_))
+    : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
-    : name(name_), disk_path(path_), logger(&Poco::Logger::get("DiskCubeFS")), settings(std::move(settings_))
+    : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
 }
 

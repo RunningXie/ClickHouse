@@ -1,6 +1,15 @@
 #include <libcfs.h>
 #include <IO/ReadBufferFromCubeFS.h>
 
+namespace ProfileEvents
+{
+extern const Event ReadBufferFromFileDescriptorRead;
+extern const Event ReadBufferFromFileDescriptorReadFailed;
+extern const Event ReadBufferFromFileDescriptorReadBytes;
+extern const Event DiskReadElapsedMicroseconds;
+extern const Event Seek;
+}
+
 namespace DB
 {
 namespace ErrorCodes
@@ -158,7 +167,7 @@ off_t ReadBufferFromCubeFS::seek(off_t offset, int whence)
     else
     {
         /// Position is out of the buffer, we need to do real seek.
-        off_t seek_pos = required_alignment > 1 ? new_pos / required_alignment * required_alignment : new_pos;
+        off_t seek_pos = new_pos;
 
         off_t offset_after_seek_pos = new_pos - seek_pos;
 
