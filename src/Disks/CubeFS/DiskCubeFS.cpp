@@ -366,7 +366,7 @@ void DiskCubeFS::createFile(const String & path)
     {
         throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
     }
-    cfs_close(id, fd);
+    cfs_close(settings->id, fd);
 }
 
 void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
