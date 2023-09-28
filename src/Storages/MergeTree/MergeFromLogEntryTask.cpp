@@ -79,10 +79,10 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MergeFromLogEntryT
             /// 2. We have some larger merged part which covers new_part_name (and therefore it covers source_part_name too)
             /// 3. We have two intersecting parts, both cover source_part_name. It's logical error.
             /// TODO Why 1 and 2 can happen? Do we need more assertions here or somewhere else?
-            constexpr const char * message = "Part {} is covered by {} but should be merged into {}. This shouldn't happen often.";
-            LOG_WARNING(log, fmt::runtime(message), source_part_name, source_part_or_covering->name, entry.new_part_name);
+            constexpr const char * message = "Part {} of table {} is covered by {} but should be merged into {}. This shouldn't happen often.";
+            LOG_WARNING(log, fmt::runtime(message), source_part_name, storage.getStorageID().getFullTableName(), source_part_or_covering->name, entry.new_part_name);
             if (!source_part_or_covering->info.contains(MergeTreePartInfo::fromPartName(entry.new_part_name, storage.format_version)))
-                throw Exception(ErrorCodes::LOGICAL_ERROR, message, source_part_name, source_part_or_covering->name, entry.new_part_name);
+                throw Exception(ErrorCodes::LOGICAL_ERROR, message, source_part_name, storage.getStorageID().getFullTableName(),  source_part_or_covering->name, entry.new_part_name);
             return {false, {}};
         }
 
