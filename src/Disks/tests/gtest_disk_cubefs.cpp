@@ -19,6 +19,8 @@ const String access_key = "jRlZO65q7XlH5bnV";
 const String secret_key = "V1m730UzREHaK1jCkC0kL0cewOX0kH3K";
 const String push_addr = "cfs.dg-push.wanyol.com";
 const String file_name = "test.txt";
+const String disk_name = "cubefs";
+
 
 TEST(DiskTestCubeFS, CreateDirectories)
 {
@@ -37,10 +39,29 @@ TEST(DiskTestCubeFS, CreateDirectories)
     DB::setClientInfo(settings->id, "pushAddr", const_cast<char *>(settings->push_addr.data()));
 
     std::cout << "set client info  successfully " << std::endl;
-    std::shared_ptr<DB::IDisk> cubeFSdisk = std::make_shared<DB::DiskCubeFS>("cubefs", path, nullptr, std::move(settings));
+    std::shared_ptr<DB::IDisk> cubeFSdisk = std::make_shared<DB::DiskCubeFS>(disk_name, path, nullptr, std::move(settings));
     std::cout << "initial cubefs disk successfully " << std::endl;
-    cubeFSdisk->createDirectories("test_dir1999");
-    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir1999/"));
+
+    EXPECT_EQ(disk_name, cubeFSdisk->getName());
+    EXPECT_EQ(path, cubeFSdisk->getPath());
+
+
+    cubeFSdisk->createDirectory("test_dir1994");
+    EXPECT_TRUE(cubeFSdisk->exists("test_dir1994"));
+    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir1994"));
+    EXPECT_FALSE(cubeFSdisk->isFile("test_dir1994"));
+
+
+    cubeFSdisk->createDirectories("test_dir199/test88");
+    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir199/test88"));
+
+
+    cubeFSdisk->moveDirectory("test_dir199/test88", "test_dir199/test887");
+    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir199/test887"));
+
+    cubeFSdisk->createFile("test_dir199/test887" + file_name);
+    EXPECT_TRUE(cubeFSdisk->isFile("test_dir199/test887" + file_name));
+    EXPECT_FALSE(cubeFSdisk->isDirectory("test_dir199/test887" + file_name));
 }
 
 

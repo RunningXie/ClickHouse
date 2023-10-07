@@ -31,6 +31,7 @@ namespace ErrorCodes
     extern const int CANNOT_CLOSE_FILE;
     extern const int ATOMIC_RENAME_FAIL;
     extern const int FILE_ALREADY_EXISTS;
+    extern const int DIRECTORY_DOESNT_EXIST;
 }
 
 constexpr uint32_t AttrModifyTime = 1 << 3;
@@ -375,13 +376,20 @@ void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
 {
     fs::path full_from_path = fs::path(disk_path) / from_path;
     fs::path full_to_path = fs::path(disk_path) / to_path;
+    // 检查目标路径的上级目录是否存在
+    fs::path parent_dir = full_to_path.parent_path();
+    if (!exists(parent_dir))
+    {
+        // 上级目录不存在，可以选择抛出异常或执行其他逻辑
+        throwFromErrnoWithPath("Destination directory not exist", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
+    }
     int result = cfs_rename(settings->id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
     if (result != 0)
     {
-        throwFromErrnoWithPath(
-            "Failed to rename file, from path: " + full_from_path.string() + "to path: " + full_to_path.string(),
-            "",
-            ErrorCodes::ATOMIC_RENAME_FAIL);
+         throwFromErrnoWithPath(
+             "Failed to rename file, from path: " + full_from_path.string() + " to path: " + full_to_path.string(),
+             "",
+             ErrorCodes::ATOMIC_RENAME_FAIL);
     }
 }
 

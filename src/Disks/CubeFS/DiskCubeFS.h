@@ -51,12 +51,14 @@ public:
     size_t getFileSize(const String & path) const override;
     void createDirectory(const String & path) override;
     void createDirectories(const String & path) override;
-    void clearDirectory(const String & path) override;
+    void clearDirectory(const String & path) override; //删除文件夹下的所有文件，diskLocal类的这个方法没有加锁
     void moveDirectory(const String & from_path, const String & to_path) override;
     DiskDirectoryIteratorPtr iterateDirectory(const String & path) override;
     void createFile(const String & path) override;
+    //遵循fs::rename语义，目的端上级目录不错在会报错
     void moveFile(const String & from_path, const String & to_path) override;
     void replaceFile(const String & from_path, const String & to_path) override;
+
     void listFiles(const String & path, std::vector<String> & file_names) override;
     void removeFile(const String & path) override;
     void removeFileIfExists(const String & path) override;
