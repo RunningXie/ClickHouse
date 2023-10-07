@@ -510,11 +510,19 @@ void DiskCubeFS::createHardLink(const String &, const String &)
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
     : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
+    if (cfs_start_client(id) != 0)
+    {
+        throwFromErrnoWithPath("Start cfs client failed" + "", "", ErrorCodes::LOGICAL_ERROR);
+    }
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
     : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
+    if (cfs_start_client(id) != 0)
+    {
+        throwFromErrnoWithPath("Start cfs client failed" + "", "", ErrorCodes::LOGICAL_ERROR);
+    }
 }
 
 DiskCubeFSSettings ::DiskCubeFSSettings(
