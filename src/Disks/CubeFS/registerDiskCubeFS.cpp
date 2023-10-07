@@ -42,11 +42,15 @@ DiskCubeFS::SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & co
 
 void setClientInfo(int id, const char * key, char * value)
 {
+std::cout<<"key: "<<key<<std::endl;
+std::cout<<"value: "<<value<<std::endl;
     if (cfs_set_client(id, strdup(key), value) != 0)
     {
         cfs_close_client(id);
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Failed to set client info");
-    }
+    }else{
+std::cout<<"ok!"<<std::endl;
+}
 }
 
 void registerDiskCubeFS(DiskFactory & factory) //方法声明直接写在了registerDisks.cpp里了

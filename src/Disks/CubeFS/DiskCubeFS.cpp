@@ -204,7 +204,9 @@ void DiskCubeFS::createDirectory(const String & path)
 void DiskCubeFS::createDirectories(const String & path)
 {
     fs::path full_path = fs::path(disk_path) / path;
-    int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), 0755);
+std::cout<<"client id: "<<settings->id<<std::endl;
+std::cout<<"path: "<<const_cast<char *>(full_path.string().c_str())<<std::endl;
+    int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), O_RDWR | O_CREAT);
     if (result != 0)
     {
         // 处理创建目录失败的情况

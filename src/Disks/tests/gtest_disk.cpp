@@ -78,7 +78,7 @@ TYPED_TEST(DiskTest, createDirectories)
 TYPED_TEST(DiskTest, writeFile)
 {
     {
-        std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file");
+        std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file"); //IDisk后两个参数有默认值
         writeString("test data", *out);
     }
 
