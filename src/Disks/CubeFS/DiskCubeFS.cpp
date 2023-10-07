@@ -188,7 +188,7 @@ cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
 {
     cfs_stat_info stat;
     fs::path full_path = fs::path(disk_path) / relative_path;
-    int result = cfs_getattr(settings->id, const_cast<char *>(relative_path.c_str()), &stat);
+    int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
     if (result != 0)
     {
         throwFromErrnoWithPath("Failed to get file attribute: " + full_path.string(), full_path, ErrorCodes::CANNOT_STATVFS);
@@ -510,18 +510,20 @@ void DiskCubeFS::createHardLink(const String &, const String &)
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
     : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
-    if (cfs_start_client(id) != 0)
+    std::cout << "client id: " << settings->id << std::endl;
+    if (cfs_start_client(settings->id) != 0)
     {
-        throwFromErrnoWithPath("Start cfs client failed" + "", "", ErrorCodes::LOGICAL_ERROR);
+        throwFromErrnoWithPath("Start cfs client failed", "", ErrorCodes::LOGICAL_ERROR);
     }
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
     : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
-    if (cfs_start_client(id) != 0)
+    std::cout << "client id: " << settings->id << std::endl;
+    if (cfs_start_client(settings->id) != 0)
     {
-        throwFromErrnoWithPath("Start cfs client failed" + "", "", ErrorCodes::LOGICAL_ERROR);
+        throwFromErrnoWithPath("Start cfs client failed", "", ErrorCodes::LOGICAL_ERROR);
     }
 }
 
