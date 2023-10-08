@@ -18,7 +18,6 @@ const String log_level = "debug";
 const String access_key = "jRlZO65q7XlH5bnV";
 const String secret_key = "V1m730UzREHaK1jCkC0kL0cewOX0kH3K";
 const String push_addr = "cfs.dg-push.wanyol.com";
-const String file_name = "test.txt";
 const String disk_name = "cubefs";
 
 
@@ -45,23 +44,45 @@ TEST(DiskTestCubeFS, CreateDirectories)
     EXPECT_EQ(disk_name, cubeFSdisk->getName());
     EXPECT_EQ(path, cubeFSdisk->getPath());
 
+    cubeFSdisk->createDirectory("create_directory");
+    EXPECT_TRUE(cubeFSdisk->exists("create_directory"));
+    EXPECT_TRUE(cubeFSdisk->isDirectory("create_directory"));
+    EXPECT_FALSE(cubeFSdisk->isFile("create_directory"));
 
-    cubeFSdisk->createDirectory("test_dir1994");
-    EXPECT_TRUE(cubeFSdisk->exists("test_dir1994"));
-    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir1994"));
-    EXPECT_FALSE(cubeFSdisk->isFile("test_dir1994"));
+    cubeFSdisk->createDirectories("not_exist_parent_directory/subdirectory");
+    EXPECT_TRUE(cubeFSdisk->isDirectory("not_exist_parent_directory/subdirectory"));
 
+    try
+    {
+        EXPECT_THROW(cubeFSdisk->moveDirectory("not_exist_parent_directory/subdirectory", "not_exist/create_directory/"), std::exception);
+    }
+    catch (const std::exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::DIRECTORY_DOESNT_EXIST);
+    }
 
-    cubeFSdisk->createDirectories("test_dir199/test88");
-    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir199/test88"));
+    cubeFSdisk->moveDirectory("not_exist_parent_directory/subdirectory", "create_directory/");
+    EXPECT_TRUE(cubeFSdisk->isDirectory("create_directory/subdirectory"));
 
+    cubeFSdisk->createFile("create_directory/file");
+    EXPECT_TRUE(cubeFSdisk->isFile("create_directory/file"));
+    EXPECT_FALSE(cubeFSdisk->isDirectory("create_directory/file"));
 
-    cubeFSdisk->moveDirectory("test_dir199/test88", "test_dir199/test887");
-    EXPECT_TRUE(cubeFSdisk->isDirectory("test_dir199/test887"));
+    cubeFSdisk->moveDirectory("create_directory", "move_directory");
+    EXPECT_TRUE(cubeFSdisk->isFile("move_directory/file"));
 
-    cubeFSdisk->createFile("test_dir199/test887" + file_name);
-    EXPECT_TRUE(cubeFSdisk->isFile("test_dir199/test887" + file_name));
-    EXPECT_FALSE(cubeFSdisk->isDirectory("test_dir199/test887" + file_name));
+    cubeFSdisk->moveFile("move_directory/file", "move_file");
+    EXPECT_TRUE(cubeFSdisk->isFile("move_file"));
+
+    cubeFSdisk->createFile("create_directory/create_file");
+    try
+    {
+        EXPECT_THROW(cubeFSdisk->moveFile("move_file", "create_directory/create_file"), std::exception);
+    }
+    catch (const std::exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::FILE_ALREADY_EXISTS);
+    }
 }
 
 
