@@ -82,12 +82,9 @@ TEST_F(DiskTestCubeFS, moveDirectory)
     }
     catch (const std::exception & e)
     {
-//std::cout<<e.what()<<std::endl;
-std::string errorMessage = e.what();
-std::string expectedSubstring = "Destination directory not exist";
-EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
-// EXPECT_THAT(e.what(), testing::HasSubstr("Destination directory not exist"));
-//EXPECT_EQ(e.code(), DB::ErrorCodes::DIRECTORY_DOESNT_EXIST);
+        std::string errorMessage = e.what();
+        std::string expectedSubstring = "Destination directory not exist";
+        EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
     }
     std::cout << "try move directory end" << std::endl;
     this->disk->moveDirectory("not_exist_parent_directory/subdirectory", "create_directory/");
@@ -102,10 +99,10 @@ TEST_F(DiskTestCubeFS, createFile)
 disk->createFile("create_directory/file");
 FAIL() << "Expected exception to be thrown.";
     }
-    cache(const std::exception & e)
+    catch (const std::exception & e)
     {
 std::string errorMessage = e.what();
-std::string expectedSubstring = "Parent directory not exist";
+std::string expectedSubstring = "Parent directory does not exist";
 EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
     }
     disk->createDirectory("create_directory");

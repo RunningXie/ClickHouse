@@ -49,7 +49,7 @@ public:
     bool isFile(const String & path) const override;
     bool isDirectory(const String & path) const override;
     size_t getFileSize(const String & path) const override;
-    void createDirectory(const String & path) override;
+    void createDirectory(const String & path) override; //相比于createDirectories，父目录不存在会报错
     void createDirectories(const String & path) override;
     /*删除文件夹下的所有文件
     diskLocal类的这个方法没有加锁,通过遍历使用fs::remove方法来删除

@@ -202,6 +202,14 @@ cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
 
 void DiskCubeFS::createDirectory(const String & path)
 {
+    fs::path parent_dir = fs::path(path).parent_path();
+    if (!exists(parent_dir))
+    {
+        // 上级目录不存在，可以选择抛出异常或执行其他逻辑
+        throwFromErrnoWithPath(
+            "Parent directory does not exist [" + parent_dir.string() + "]", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
+    }
+    fs::path full_path = fs::path(disk_path) / path;
     createDirectories(path);
 }
 
@@ -354,9 +362,9 @@ private:
 
     void closeDirectory()
     {
-        if (fd < 0)
-            return;
-        cfs_close(id, fd);
+        if (fd > 0)
+            cfs_close(id, fd);
+        cfs_close_client(id);
     }
 };
 
@@ -371,13 +379,14 @@ DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
 
 void DiskCubeFS::createFile(const String & path)
 {
-    fs::path full_path = fs::path(disk_path) / path;
-    fs::path parent_dir = full_path.parent_path();
+    fs::path parent_dir = fs::path(path).parent_path();
     if (!exists(parent_dir))
     {
         // 上级目录不存在，可以选择抛出异常或执行其他逻辑
-        throwFromErrnoWithPath("Parent directory not exist", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
+        throwFromErrnoWithPath(
+            "Parent directory does not exist [" + parent_dir.string() + "]", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
     }
+    fs::path full_path = fs::path(disk_path) / path;
     int fd = cfs_open(
         settings->id,
         const_cast<char *>(full_path.string().c_str()),
@@ -392,15 +401,16 @@ void DiskCubeFS::createFile(const String & path)
 
 void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
 {
-    fs::path full_from_path = fs::path(disk_path) / from_path;
-    fs::path full_to_path = fs::path(disk_path) / to_path;
     // 检查目标路径的上级目录是否存在
-    fs::path parent_dir = full_to_path.parent_path();
+    fs::path parent_dir = fs::path(to_path).parent_path();
     if (!exists(parent_dir))
     {
         // 上级目录不存在，可以选择抛出异常或执行其他逻辑
-        throwFromErrnoWithPath("Destination directory not exist", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
+        throwFromErrnoWithPath(
+            "Destination directory does not exist [" + parent_dir.string() + "]", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
     }
+    fs::path full_from_path = fs::path(disk_path) / from_path;
+    fs::path full_to_path = fs::path(disk_path) / to_path;
     int result = cfs_rename(settings->id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
     if (result != 0)
     {
@@ -598,9 +608,9 @@ bool DiskCubeFS::canRead(const std::string & path)
 
 bool DiskCubeFS::exists(const String & path) const
 {
-    String full_path = disk_path + "/" + path;
+    fs::path full_path = fs::path(disk_path) / path;
     cfs_stat_info stat;
-    int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
+    int result = cfs_getattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat);
     return (result == 0);
 }
 
