@@ -56,8 +56,9 @@ public:
     因此空的子文件夹可以删除，子文件夹下有文件会报错
     */
     void clearDirectory(const String & path) override;
-    //遵循fs::rename语义，目的端上级目录不错在会报错
-    void moveDirectory(const String & from_path, const String & to_path) override;
+    //遵循fs::rename语义，目的端上级目录不存在会报错
+    void
+    moveDirectory(const String & from_path, const String & to_path) override; //目的端目录存在单位空使用fs::rename是合法的，但cubefs不可以
     void moveFile(const String & from_path, const String & to_path) override; //相比replaceFile,不会覆盖目的端同名文件
     void replaceFile(const String & from_path, const String & to_path) override;
 

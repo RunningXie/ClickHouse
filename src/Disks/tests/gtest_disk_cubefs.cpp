@@ -56,6 +56,8 @@ public:
 
 TEST_F(DiskTestCubeFS, createDirectory)
 {
+EXPECT_TRUE(this->disk->exists("/"));
+std::cout<<"empty exist is ok"<<std::endl;
     EXPECT_EQ(disk_name, this->disk->getName());
 
     disk->createDirectory("create_directory");
@@ -71,7 +73,7 @@ TEST_F(DiskTestCubeFS, createDirectory)
 
 TEST_F(DiskTestCubeFS, moveDirectory)
 {
-    disk->createDirectory("create_directory");
+disk->createDirectory("create_directory");
     disk->createDirectories("not_exist_parent_directory/subdirectory");
     try
     {
@@ -83,11 +85,11 @@ TEST_F(DiskTestCubeFS, moveDirectory)
     catch (const std::exception & e)
     {
         std::string errorMessage = e.what();
-        std::string expectedSubstring = "Destination directory not exist";
+        std::string expectedSubstring = "Destination directory does not exist";
         EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
     }
     std::cout << "try move directory end" << std::endl;
-    this->disk->moveDirectory("not_exist_parent_directory/subdirectory", "create_directory/");
+    this->disk->moveDirectory("not_exist_parent_directory/subdirectory", "create_directory/subdirectory");
     EXPECT_TRUE(this->disk->isDirectory("create_directory/subdirectory"));
     std::cout << "move directory end" << std::endl;
 }
@@ -136,7 +138,7 @@ TEST_F(DiskTestCubeFS, moveFile)
     catch (const std::exception & e)
     {
         std::string errorMessage = e.what();
-        std::string expectedSubstring = "Destination directory not exist";
+        std::string expectedSubstring = "Destination directory does not exist";
         EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
 
         //EXPECT_THAT(e.what(), testing::HasSubstr("already exists"));
