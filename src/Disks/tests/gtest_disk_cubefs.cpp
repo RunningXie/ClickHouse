@@ -47,29 +47,32 @@ public:
     }
     void TearDown() override
     {
-        disk->removeRecursive(disk->getPath());
+        disk->removeRecursive("");
         disk.reset();
     }
 
     DB::DiskPtr disk;
 };
 
-TEST(DiskTestCubeFS, CreateDirectory)
+TEST_F(DiskTestCubeFS, createDirectory)
 {
     EXPECT_EQ(disk_name, this->disk->getName());
 
-    cubeFSdisk->createDirectory("create_directory");
+    disk->createDirectory("create_directory");
     EXPECT_TRUE(this->disk->exists("create_directory"));
     EXPECT_TRUE(this->disk->isDirectory("create_directory"));
     EXPECT_FALSE(this->disk->isFile("create_directory"));
 
     this->disk->createDirectories("not_exist_parent_directory/subdirectory");
     EXPECT_TRUE(this->disk->isDirectory("not_exist_parent_directory/subdirectory"));
+    std::cout << "class disk path: " << disk->getPath() << std::endl;
 }
 
 
-TEST(DiskTestCubeFS, MoveDirectory)
+TEST_F(DiskTestCubeFS, moveDirectory)
 {
+    disk->createDirectory("create_directory");
+    disk->createDirectories("not_exist_parent_directory/subdirectory");
     try
     {
         std::cout << "try move directory" << std::endl;
@@ -92,18 +95,38 @@ EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
     std::cout << "move directory end" << std::endl;
 }
 
-TEST(DiskTestCubeFS, CreateFile)
+TEST_F(DiskTestCubeFS, createFile)
 {
+    try
+    {
+disk->createFile("create_directory/file");
+FAIL() << "Expected exception to be thrown.";
+    }
+    cache(const std::exception & e)
+    {
+std::string errorMessage = e.what();
+std::string expectedSubstring = "Parent directory not exist";
+EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
+    }
+    disk->createDirectory("create_directory");
+
     this->disk->createFile("create_directory/file");
     EXPECT_TRUE(this->disk->isFile("create_directory/file"));
     EXPECT_FALSE(this->disk->isDirectory("create_directory/file"));
     std::cout << "create file end" << std::endl;
+}
+
+TEST_F(DiskTestCubeFS, moveFile)
+{
+    disk->createDirectory("create_directory");
+    disk->createFile("create_directory/file");
     this->disk->moveDirectory("create_directory", "move_directory");
     EXPECT_TRUE(this->disk->isFile("move_directory/file"));
     std::cout << "move directory end" << std::endl;
     this->disk->moveFile("move_directory/file", "move_file");
     EXPECT_TRUE(this->disk->isFile("move_file"));
     std::cout << "move file end" << std::endl;
+    disk->createDirectory("create_directory");
     this->disk->createFile("create_directory/create_file");
     std::cout << "create file end" << std::endl;
     try
@@ -123,6 +146,8 @@ TEST(DiskTestCubeFS, CreateFile)
         //std::cout<<e.what()<<std::endl;
         //EXPECT_EQ(e.code(), DB::ErrorCodes::FILE_ALREADY_EXISTS);
     }
+    disk->replaceFile("move_file", "create_directory/create_file");
+    EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
 }
 
 #endif

@@ -192,7 +192,10 @@ cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
     int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
     if (result != 0)
     {
-        throwFromErrnoWithPath("Failed to get file attribute: " + full_path.string(), full_path, ErrorCodes::CANNOT_STATVFS);
+        int error_code = errno;
+        std::string error_message = strerror(error_code);
+        std::string full_error_message = "Failed to get file attribute: " + full_path.string() + ": " + error_message;
+        throwFromErrnoWithPath(full_error_message, full_path, ErrorCodes::CANNOT_STATVFS);
     }
     return stat;
 }
@@ -205,8 +208,8 @@ void DiskCubeFS::createDirectory(const String & path)
 void DiskCubeFS::createDirectories(const String & path)
 {
     fs::path full_path = fs::path(disk_path) / path;
-std::cout<<"client id: "<<settings->id<<std::endl;
-std::cout<<"path: "<<const_cast<char *>(full_path.string().c_str())<<std::endl;
+    std::cout << "client id: " << settings->id << std::endl;
+    std::cout << "path: " << const_cast<char *>(full_path.string().c_str()) << std::endl;
     int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), O_RDWR | O_CREAT);
     if (result != 0)
     {
@@ -236,31 +239,40 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
 {
     file_names.clear();
     fs::path full_path = (fs::path(disk_path) / path);
+    std::cout << "list full path: " << full_path.string() << std::endl;
     int fd = -1;
-    GoSlice dirents;
-    dirents.data = nullptr;
-    dirents.len = 0;
-    dirents.cap = 0;
-    fd = cfs_open(settings->id, strdup("."), 0, 0);
+    fd = cfs_open(settings->id, const_cast<char *>(full_path.string().c_str()), 0, 0);
     if (fd < 0)
     {
         throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
     }
-    int read_result = cfs_readdir(settings->id, fd, dirents, 0);
-    if (read_result < 0)
+    int count = 10000;
+    while (true)
     {
-        throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
-    }
+        std::vector<cfs_dirent> direntsInfo(count);
 
-    char ** d_names = static_cast<char **>(dirents.data);
-    int count = dirents.len;
-    file_names.resize(count);
-    for (int i = 0; i < count; ++i)
-    {
-        String file_name(d_names[i]);
-        file_names.emplace_back(file_name);
+        std::memset(direntsInfo.data(), 0, count * sizeof(cfs_dirent_info));
+
+
+        int num_entries = cfs_readdir(settings->id, fd, {direntsInfo.data(), count, count}, count);
+        if (num_entries < 0)
+        {
+            throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+        }
+        std::cout << "readdir result, num_entries: " << num_entries << std::endl;
+        if (num_entries < count)
+        {
+            for (int i = 0; i < num_entries; i++)
+            {
+                std::string file_name(direntsInfo[i].name);
+                std::cout << "filename: " << file_name << std::endl;
+                file_names.emplace_back(file_name);
+            }
+            cfs_close(settings->id, fd);
+            return;
+        }
+        count = count * 2;
     }
-    cfs_close(settings->id, fd);
 }
 
 
@@ -278,7 +290,7 @@ void DiskCubeFS::removeFile(const String & path)
 
 void DiskCubeFS::moveDirectory(const String & from_path, const String & to_path)
 {
-    moveFile( from_path,  to_path);
+    moveFile(from_path, to_path);
 }
 
 class DiskCubeFSDirectoryIterator final : public IDiskDirectoryIterator
@@ -360,6 +372,12 @@ DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
 void DiskCubeFS::createFile(const String & path)
 {
     fs::path full_path = fs::path(disk_path) / path;
+    fs::path parent_dir = full_path.parent_path();
+    if (!exists(parent_dir))
+    {
+        // 上级目录不存在，可以选择抛出异常或执行其他逻辑
+        throwFromErrnoWithPath("Parent directory not exist", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
+    }
     int fd = cfs_open(
         settings->id,
         const_cast<char *>(full_path.string().c_str()),
@@ -415,24 +433,36 @@ void DiskCubeFS::removeDirectory(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
     if (0 != cfs_rmdir(settings->id, const_cast<char *>(fs_path.c_str())))
-        throwFromErrnoWithPath("Cannot rmdir " + fs_path.string(), fs_path, ErrorCodes::CANNOT_RMDIR);
+    {
+        int error_code = errno;
+        std::string error_message = strerror(error_code);
+        std::string full_error_message = "Cannot rmdir " + fs_path.string() + ": " + error_message;
+        throwFromErrnoWithPath(full_error_message, fs_path, ErrorCodes::CANNOT_RMDIR);
+    }
 }
 
 void DiskCubeFS::removeRecursive(const String & path)
 {
+    std::cout << "remove recursive, handle relative path: " << path << std::endl;
     cfs_stat_info stat = getFileAttributes(path);
     if (S_ISDIR(stat.mode))
     {
         std::vector<String> file_names;
         listFiles(path, file_names);
+        std::cout << "listFiles result: " << std::endl;
         for (const auto & filename : file_names)
         {
-            std::string childPath = path + "/" + filename;
-            removeRecursive(childPath);
+            std::cout << filename << std::endl;
         }
+
+for (const auto & filename : file_names)
+{
+            auto child_path = fs::path(path) / filename;
+            removeRecursive(child_path.string());
+}
         // 删除空目录
         removeDirectory(path);
-    }
+}
     else
     {
         // 文件
