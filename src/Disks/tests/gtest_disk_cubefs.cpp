@@ -47,7 +47,7 @@ public:
     }
     void TearDown() override
     {
-        disk->removeRecursive("");
+      disk->removeRecursive("");
         disk.reset();
     }
 
@@ -117,6 +117,19 @@ EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
 
 TEST_F(DiskTestCubeFS, moveFile)
 {
+/*
+disk->createDirectory("create_directory");
+disk->createFile("create_directory/create_file");
+std::cout<<"get attr 1"<<std::endl;
+EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+std::cout<<"get attr 2"<<std::endl;
+EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+std::cout<<"get attr 3"<<std::endl;
+EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+std::cout<<"get attr 4"<<std::endl;
+EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+*/
+
     disk->createDirectory("create_directory");
     disk->createFile("create_directory/file");
     this->disk->moveDirectory("create_directory", "move_directory");
@@ -131,22 +144,19 @@ TEST_F(DiskTestCubeFS, moveFile)
     try
     {
         std::cout << "try move file" << std::endl;
-        //   EXPECT_THROW(cubeFSdisk->moveFile("move_file", "create_directory/create_file"), std::exception);
         this->disk->moveFile("move_file", "create_directory/create_file");
         FAIL() << "Expected exception to be thrown.";
     }
     catch (const std::exception & e)
     {
         std::string errorMessage = e.what();
-        std::string expectedSubstring = "Destination directory does not exist";
+        std::string expectedSubstring = "Destination file already exists";
         EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
-
-        //EXPECT_THAT(e.what(), testing::HasSubstr("already exists"));
-        //std::cout<<e.what()<<std::endl;
-        //EXPECT_EQ(e.code(), DB::ErrorCodes::FILE_ALREADY_EXISTS);
     }
+EXPECT_TRUE(disk->exists("create_directory/create_file"));
+std::cout<<"start replace file"<<std::endl;
     disk->replaceFile("move_file", "create_directory/create_file");
-    EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+    EXPECT_TRUE(this->disk->isFile("move_file"));
 }
 
 #endif

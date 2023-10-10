@@ -189,6 +189,7 @@ cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
 {
     cfs_stat_info stat;
     fs::path full_path = fs::path(disk_path) / relative_path;
+    std::cout << "[getFileAttributes] check path: " << full_path.string() << std::endl;
     int result = cfs_getattr(settings->id, const_cast<char *>(full_path.c_str()), &stat);
     if (result != 0)
     {
@@ -203,7 +204,7 @@ cfs_stat_info DiskCubeFS::getFileAttributes(const String & relative_path) const
 void DiskCubeFS::createDirectory(const String & path)
 {
     fs::path parent_dir = fs::path(path).parent_path();
-    if (parent_dir.string() != "" && !exists(parent_dir))
+    if (!exists(parent_dir))
     {
         // 上级目录不存在，可以选择抛出异常或执行其他逻辑
         throwFromErrnoWithPath(
@@ -287,7 +288,8 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
 void DiskCubeFS::removeFile(const String & path)
 {
     fs::path full_path = (fs::path(disk_path) / path);
-    int result = cfs_unlink(settings->id, const_cast<char *>(full_path.string().c_str()));
+    std::cout << "[removeFile] path: " << full_path.string() << std::endl;
+    int result = cfs_unlink(settings->id, const_cast<char *>(full_path.c_str()));
 
     if (result != 0)
     {
@@ -380,7 +382,7 @@ DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
 void DiskCubeFS::createFile(const String & path)
 {
     fs::path parent_dir = fs::path(path).parent_path();
-    if (parent_dir.string() != "" && !exists(parent_dir))
+    if (!exists(parent_dir))
     {
         // 上级目录不存在，可以选择抛出异常或执行其他逻辑
         throwFromErrnoWithPath(
@@ -403,16 +405,17 @@ void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
 {
     // 检查目标路径的上级目录是否存在
     fs::path parent_dir = fs::path(to_path).parent_path();
-    if (parent_dir.string() != "" && !exists(parent_dir))
+    if (!exists(parent_dir))
     {
         // 上级目录不存在，可以选择抛出异常或执行其他逻辑
         throwFromErrnoWithPath(
             "Destination directory does not exist [" + parent_dir.string() + "]", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
     }
-    if (exists(to_path) && isFile(to_path))
+    if (fileExists(to_path))
     {
         removeFile(to_path);
     }
+    std::cout << "remove file successfully" << std::endl;
     fs::path full_from_path = fs::path(disk_path) / from_path;
     fs::path full_to_path = fs::path(disk_path) / to_path;
     int result = cfs_rename(settings->id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
@@ -431,7 +434,7 @@ void DiskCubeFS::moveFile(const String & from_path, const String & to_path)
     if (exists(to_path))
     {
          throwFromErrnoWithPath(
-             "Destination file: " + (fs::path(disk_path) / to_path).string() + "already exists",
+             "Destination file already exists [" + (fs::path(disk_path) / to_path).string() + "]",
              fs::path(disk_path) / to_path,
              ErrorCodes::FILE_ALREADY_EXISTS);
     }
@@ -569,6 +572,7 @@ DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr s
     {
         throwFromErrnoWithPath("Start cfs client failed", "", ErrorCodes::LOGICAL_ERROR);
     }
+    createDirectories("");
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, SettingsPtr settings_)
@@ -579,6 +583,7 @@ DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, S
     {
         throwFromErrnoWithPath("Start cfs client failed", "", ErrorCodes::LOGICAL_ERROR);
     }
+    createDirectories("");
 }
 
 DiskCubeFSSettings ::DiskCubeFSSettings(
@@ -616,9 +621,17 @@ bool DiskCubeFS::exists(const String & path) const
 {
     fs::path full_path = fs::path(disk_path) / path;
     cfs_stat_info stat;
-    std::cout << "check path: " << full_path.string() << std::endl;
+    std::cout << "[exists] check path: " << full_path.string() << std::endl;
     int result = cfs_getattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat);
     return (result == 0);
+}
+
+void DiskCubeFS::fileExists(const String & path)
+{
+    fs::path full_path = fs::path(disk_path) / path;
+    cfs_stat_info stat;
+    int result = cfs_getattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat);
+    return (result == 0) && (S_ISREG(stat.mode));
 }
 
 std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)

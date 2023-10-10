@@ -82,7 +82,7 @@ public:
     UInt64 getAvailableSpace() const override;
 
 private:
-    //std::optional<UInt32> readDiskCheckerMagicNumber() const noexcept;
+    bool fileExists(const String & path) const ;
     cfs_stat_info getFileAttributes(const String & relative_path) const;
     bool canRead(const std::string & path);
     std::optional<size_t> fileSizeSafe(const fs::path & path);
