@@ -32,6 +32,7 @@ namespace ErrorCodes
     extern const int ATOMIC_RENAME_FAIL;
     extern const int FILE_ALREADY_EXISTS;
     extern const int DIRECTORY_DOESNT_EXIST;
+    extern const int FILE_DOESNT_EXIST;
 }
 
 constexpr uint32_t AttrModifyTime = 1 << 3;
@@ -288,6 +289,10 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
 void DiskCubeFS::removeFile(const String & path)
 {
     fs::path full_path = (fs::path(disk_path) / path);
+    if (!fileExists(path))
+    {
+        throwFromErrnoWithPath("File does not exists: " + full_path.string(), full_path, ErrorCodes::FILE_DOESNT_EXIST);
+    }
     std::cout << "[removeFile] path: " << full_path.string() << std::endl;
     int result = cfs_unlink(settings->id, const_cast<char *>(full_path.c_str()));
 
@@ -366,7 +371,6 @@ private:
     {
         if (fd > 0)
             cfs_close(id, fd);
-        cfs_close_client(id);
     }
 };
 
@@ -411,11 +415,6 @@ void DiskCubeFS::replaceFile(const String & from_path, const String & to_path)
         throwFromErrnoWithPath(
             "Destination directory does not exist [" + parent_dir.string() + "]", parent_dir, ErrorCodes::DIRECTORY_DOESNT_EXIST);
     }
-    if (fileExists(to_path))
-    {
-        removeFile(to_path);
-    }
-    std::cout << "remove file successfully" << std::endl;
     fs::path full_from_path = fs::path(disk_path) / from_path;
     fs::path full_to_path = fs::path(disk_path) / to_path;
     int result = cfs_rename(settings->id, const_cast<char *>(full_from_path.string().c_str()), const_cast<char *>(full_to_path.string().c_str()));
@@ -443,9 +442,12 @@ void DiskCubeFS::moveFile(const String & from_path, const String & to_path)
 
 void DiskCubeFS::removeFileIfExists(const String & path)
 {
-    auto fs_path = fs::path(disk_path) / path;
-    if (0 != cfs_unlink(settings->id, const_cast<char *>(fs_path.c_str())) && errno != ENOENT)
-        throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
+    if (fileExists(path))
+    {
+         auto fs_path = fs::path(disk_path) / path;
+         if (0 != cfs_unlink(settings->id, const_cast<char *>(fs_path.c_str())))
+            throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
+    }
 }
 
 void DiskCubeFS::removeDirectory(const String & path)
@@ -626,7 +628,7 @@ bool DiskCubeFS::exists(const String & path) const
     return (result == 0);
 }
 
-void DiskCubeFS::fileExists(const String & path)
+bool DiskCubeFS::fileExists(const String & path) const
 {
     fs::path full_path = fs::path(disk_path) / path;
     cfs_stat_info stat;

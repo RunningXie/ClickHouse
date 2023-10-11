@@ -48,7 +48,8 @@ public:
     void TearDown() override
     {
       disk->removeRecursive("");
-        disk.reset();
+      disk->cfs_close_client(settings->id);
+      disk.reset();
     }
 
     DB::DiskPtr disk;
@@ -117,19 +118,6 @@ EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
 
 TEST_F(DiskTestCubeFS, moveFile)
 {
-/*
-disk->createDirectory("create_directory");
-disk->createFile("create_directory/create_file");
-std::cout<<"get attr 1"<<std::endl;
-EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
-std::cout<<"get attr 2"<<std::endl;
-EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
-std::cout<<"get attr 3"<<std::endl;
-EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
-std::cout<<"get attr 4"<<std::endl;
-EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
-*/
-
     disk->createDirectory("create_directory");
     disk->createFile("create_directory/file");
     this->disk->moveDirectory("create_directory", "move_directory");
@@ -137,15 +125,12 @@ EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
     std::cout << "move directory end" << std::endl;
     this->disk->moveFile("move_directory/file", "move_file");
     EXPECT_TRUE(this->disk->isFile("move_file"));
-    std::cout << "move file end" << std::endl;
     disk->createDirectory("create_directory");
     this->disk->createFile("create_directory/create_file");
-    std::cout << "create file end" << std::endl;
     try
     {
-        std::cout << "try move file" << std::endl;
-        this->disk->moveFile("move_file", "create_directory/create_file");
-        FAIL() << "Expected exception to be thrown.";
+this->disk->moveFile("move_file", "create_directory/create_file");
+FAIL() << "Expected exception to be thrown.";
     }
     catch (const std::exception & e)
     {
@@ -156,7 +141,82 @@ EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
 EXPECT_TRUE(disk->exists("create_directory/create_file"));
 std::cout<<"start replace file"<<std::endl;
     disk->replaceFile("move_file", "create_directory/create_file");
-    EXPECT_TRUE(this->disk->isFile("move_file"));
+    EXPECT_TRUE(this->disk->isFile("create_directory/create_file"));
+}
+
+TEST_F(DiskTestCubeFS, remove)
+{
+    try
+    {
+        disk->removeFile("not_exist");
+        FAIL() << "Expected exception to be thrown.";
+    }
+    catch (const std::exception & e)
+    {
+        std::string errorMessage = e.what();
+        std::string expectedSubstring = "File does not exists";
+        EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
+    }
+    disk->removeFileIfExists("not_exist");
+}
+
+TEST_F(DiskTestCubeFS, lastModified)
+{
+    Poco::Timestamp timestamp; //直接获取当前时间
+    disk->createFile("file");
+    disk->setLastModified("file", timestamp);
+    EXPECT_EQ(timestamp, disk->getLastModified("file"));
+}
+
+TEST_F(DiskTest, writeFile)
+{
+    {
+        std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file"); //IDisk后两个参数有默认值
+        writeString("test data", *out);
+    }
+
+    DB::String data;
+    {
+        std::unique_ptr<DB::ReadBuffer> in = this->disk->readFile("test_file");
+        readString(data, *in);
+    }
+
+    EXPECT_EQ("test data", data);
+    EXPECT_EQ(data.size(), this->disk->getFileSize("test_file"));
+}
+
+TEST_F(DiskTestCubeFS, readFile)
+{
+    {
+        std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file");
+        writeString("test data", *out);
+    }
+
+    // Test SEEK_SET
+    {
+        String buf(4, '0');
+        std::unique_ptr<DB::SeekableReadBuffer> in = this->disk->readFile("test_file");
+
+        in->seek(5, SEEK_SET);
+
+        in->readStrict(buf.data(), 4);
+        EXPECT_EQ("data", buf);
+    }
+
+    // Test SEEK_CUR
+    {
+        std::unique_ptr<DB::SeekableReadBuffer> in = this->disk->readFile("test_file");
+        String buf(4, '0');
+
+        in->readStrict(buf.data(), 4);
+        EXPECT_EQ("test", buf);
+
+        // Skip whitespace
+        in->seek(1, SEEK_CUR);
+
+        in->readStrict(buf.data(), 4);
+        EXPECT_EQ("data", buf);
+    }
 }
 
 #endif

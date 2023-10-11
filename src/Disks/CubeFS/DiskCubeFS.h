@@ -51,12 +51,16 @@ public:
     size_t getFileSize(const String & path) const override;
     void createDirectory(const String & path) override; //相比于createDirectories，父目录不存在会报错
     void createDirectories(const String & path) override;
-    /*删除文件夹下的所有文件
+    /*
+    删除文件夹下的所有文件
     diskLocal类的这个方法没有加锁,通过遍历使用fs::remove方法来删除
     因此空的子文件夹可以删除，子文件夹下有文件会报错
     */
     void clearDirectory(const String & path) override;
-    //遵循fs::rename语义，目的端上级目录不存在会报错
+    /*
+    遵循fs::rename语义，目的端上级目录不存在会报错
+    通过修改cubefs代码，使得cfs_rename方法支持覆盖目的端文件
+    */
     void
     moveDirectory(const String & from_path, const String & to_path) override; //目的端目录存在单位空使用fs::rename是合法的，但cubefs不可以
     void moveFile(const String & from_path, const String & to_path) override; //相比replaceFile,不会覆盖目的端同名文件
