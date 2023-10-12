@@ -2540,7 +2540,7 @@ void MergeTreeData::changeSettings(
                     for (const String & disk_name : all_diff_disk_names)
                     {
                         auto disk = new_storage_policy->getDiskByName(disk_name);
-                        if (disk->exists(relative_data_path))
+                        if (!disk->supportDataSharing() && disk->exists(relative_data_path))
                             throw Exception("New storage policy contain disks which already contain data of a table with the same name", ErrorCodes::LOGICAL_ERROR);
                     }
 
