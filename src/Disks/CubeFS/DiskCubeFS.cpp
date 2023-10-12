@@ -659,6 +659,10 @@ std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
 std::unique_ptr<ReadBufferFromFileBase>
 DiskCubeFS::readFile(const String & path, const ReadSettings &, std::optional<size_t>, std::optional<size_t>) const
 {
+if (!fileExists(path))
+    {
+        throwFromErrnoWithPath("File does not exists: " + full_path.string(), full_path, ErrorCodes::FILE_DOESNT_EXIST);
+    }
     return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, O_RDONLY | O_CLOEXEC);
 }
 

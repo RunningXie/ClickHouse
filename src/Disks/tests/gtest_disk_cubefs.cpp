@@ -187,6 +187,18 @@ TEST_F(DiskTest, writeFile)
 
 TEST_F(DiskTestCubeFS, readFile)
 {
+    try
+    {
+        std::unique_ptr<DB::ReadBuffer> in = this->disk->readFile("test_file");
+        FAIL() << "Expected exception to be thrown.";
+    }
+    catch (const std::exception & e)
+    {
+        std::string errorMessage = e.what();
+        std::string expectedSubstring = "File does not exists";
+        EXPECT_TRUE(errorMessage.find(expectedSubstring) != std::string::npos);
+    }
+
     {
         std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file");
         writeString("test data", *out);
@@ -195,7 +207,7 @@ TEST_F(DiskTestCubeFS, readFile)
     // Test SEEK_SET
     {
         String buf(4, '0');
-        std::unique_ptr<DB::SeekableReadBuffer> in = this->disk->readFile("test_file");
+        in = this->disk->readFile("test_file");
 
         in->seek(5, SEEK_SET);
 
@@ -216,6 +228,27 @@ TEST_F(DiskTestCubeFS, readFile)
 
         in->readStrict(buf.data(), 4);
         EXPECT_EQ("data", buf);
+    }
+}
+
+TEST_F(DiskTest, iterateDirectory)
+{
+    this->disk->createDirectories("test_dir/nested_dir/");
+
+    {
+        auto iter = this->disk->iterateDirectory("");
+        EXPECT_TRUE(iter->isValid());
+        EXPECT_EQ("test_dir/", iter->path());
+        iter->next();
+        EXPECT_FALSE(iter->isValid());
+    }
+
+    {
+        auto iter = this->disk->iterateDirectory("test_dir/");
+        EXPECT_TRUE(iter->isValid());
+        EXPECT_EQ("test_dir/nested_dir/", iter->path());
+        iter->next();
+        EXPECT_FALSE(iter->isValid());
     }
 }
 
