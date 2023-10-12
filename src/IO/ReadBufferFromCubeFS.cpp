@@ -1,6 +1,5 @@
 #include <libcfs.h>
 #include <IO/ReadBufferFromCubeFS.h>
-
 namespace ProfileEvents
 {
 extern const Event ReadBufferFromFileDescriptorRead;
@@ -59,11 +58,12 @@ bool ReadBufferFromCubeFS::nextImpl()
 {
     /// If internal_buffer size is empty, then read() cannot be distinguished from EOF
     assert(!internal_buffer.empty());
-
+    std::cout << "[nextImpl] internal buffer size: " << internal_buffer.size() << std::endl;
     /// This is a workaround of a read pass EOF bug in linux kernel with pread()
     if (file_size.has_value() && file_offset_of_buffer_end >= *file_size)
         return false;
-
+    //std::cout<<"[nextImpl] internal_buffer.begin(): "<<internal_buffer.begin()<<std::endl;
+    std::cout << "[nextImpl] if pass" << std::endl;
     size_t bytes_read = 0;
     while (!bytes_read)
     {
@@ -74,8 +74,8 @@ bool ReadBufferFromCubeFS::nextImpl()
         ssize_t res = 0;
         {
             //CurrentMetrics::Increment metric_increment{CurrentMetrics::Read};
-
-            res = cfs_read(id, fd, internal_buffer.begin(), internal_buffer.size(), 0);
+            //std::cout<<"[nextImpl] cfs_read arguments: internal_buffer.begin(): "<<internal_buffer.begin()<<"internal_buffer.size(): "<<internal_buffer.size()<<std::endl;
+            res = cfs_read(id, fd, internal_buffer.begin(), internal_buffer.size(), file_offset_of_buffer_end);
         }
         if (!res)
             break;
@@ -120,7 +120,15 @@ bool ReadBufferFromCubeFS::nextImpl()
     return true;
 }
 
-ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file_name_, int flags) : id(id_), file_name(file_name_)
+ReadBufferFromCubeFS::ReadBufferFromCubeFS(
+    int64_t id_,
+    const std::string & file_name_,
+    int flags,
+    char * existing_memory,
+    size_t buf_size,
+    size_t alignment,
+    std::optional<size_t> file_size_)
+    : ReadBufferFromFileBase(buf_size, existing_memory, alignment, file_size_), id(id_), file_name(file_name_)
 {
     //ProfileEvents::increment(ProfileEvents::FileOpen);
 
@@ -134,6 +142,7 @@ ReadBufferFromCubeFS::ReadBufferFromCubeFS(int64_t id_, const std::string & file
 /// If 'offset' is small enough to stay in buffer after seek, then true seek in file does not happen.
 off_t ReadBufferFromCubeFS::seek(off_t offset, int whence)
 {
+    std::cout << "use seek function" << std::endl;
     size_t new_pos;
     if (whence == SEEK_SET)
     {

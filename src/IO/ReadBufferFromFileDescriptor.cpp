@@ -189,7 +189,7 @@ off_t ReadBufferFromFileDescriptor::seek(off_t offset, int whence)
         {
             Stopwatch watch(profile_callback ? clock_type : CLOCK_MONOTONIC);
 
-            off_t res = ::lseek(fd, seek_pos, SEEK_SET);
+            off_t res = ::lseek(fd, seek_pos, SEEK_SET); //用于设置读取文件的偏移量，并不负责读取文件内容
             if (-1 == res)
                 throwFromErrnoWithPath("Cannot seek through file " + getFileName(), getFileName(),
                     ErrorCodes::CANNOT_SEEK_THROUGH_FILE);
