@@ -188,24 +188,6 @@ off_t ReadBufferFromCubeFS::seek(off_t offset, int whence)
 
         /// We account both cases as seek event as it leads to non-contiguous reads from file.
         ProfileEvents::increment(ProfileEvents::Seek);
-
-
-        //Stopwatch watch(profile_callback ? clock_type : CLOCK_MONOTONIC);
-        ssize_t res = cfs_read(id, fd, nullptr, 0, offset);
-        if (res < 0)
-        {
-            // 处理文件读取失败的情况
-            throwFromErrnoWithPath("Cannot seek through file " + getFileName(), getFileName(), ErrorCodes::CANNOT_SEEK_THROUGH_FILE);
-        }
-        /// Also note that seeking past the file size is not allowed.
-        if (res != seek_pos)
-            throw Exception(
-                ErrorCodes::CANNOT_SEEK_THROUGH_FILE, "The 'lseek' syscall returned value ({}) that is not expected ({})", res, seek_pos);
-
-        // watch.stop();
-        //ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
-
-
         file_offset_of_buffer_end = seek_pos;
 
         if (offset_after_seek_pos > 0)

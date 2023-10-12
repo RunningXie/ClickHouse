@@ -185,7 +185,7 @@ off_t ReadBufferFromFileDescriptor::seek(off_t offset, int whence)
         /// We account both cases as seek event as it leads to non-contiguous reads from file.
         ProfileEvents::increment(ProfileEvents::Seek);
 
-        if (!use_pread)
+        if (!use_pread)//库函数的read方法没办法指定偏移量，但pread可以直接指定偏移量，这点cubefs的sdk类似
         {
             Stopwatch watch(profile_callback ? clock_type : CLOCK_MONOTONIC);
 
