@@ -17,7 +17,9 @@ class ReadBufferFromCubeFS : public ReadBufferFromFileBase
 {
 public:
     explicit ReadBufferFromCubeFS(
-        int64_t id_, const std::string & file_name_, int flags = -1);
+        int64_t id_, const std::string & file_name_, int flags = -1,char * existing_memory=nullptr,size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
+        size_t alignment = 0,
+        std::optional<size_t> file_size_ = std::nullopt);
     ~ReadBufferFromCubeFS() override;
     std::string getFileName() const override { return file_name; }
     Range getRemainingReadRange() const override { return Range{.left = file_offset_of_buffer_end, .right = std::nullopt}; }
