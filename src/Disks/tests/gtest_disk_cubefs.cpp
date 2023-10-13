@@ -4,7 +4,10 @@
 #if RUN_CUBEFS_TEST
 
 #    include <Disks/CubeFS/DiskCubeFS.h>
-
+#    include <IO/ReadBufferFromCubeFS.h>
+#    include <IO/ReadHelpers.h>
+#    include <IO/WriteBufferFromCubeFS.h>
+#    include <IO/WriteHelpers.h>
 namespace DB
 {
 int64_t getClientId();
@@ -47,9 +50,8 @@ public:
     }
     void TearDown() override
     {
-      disk->removeRecursive("");
-      disk->cfs_close_client(settings->id);
-      disk.reset();
+        disk->removeRecursive("");
+        disk.reset();
     }
 
     DB::DiskPtr disk;
@@ -165,10 +167,11 @@ TEST_F(DiskTestCubeFS, lastModified)
     Poco::Timestamp timestamp; //直接获取当前时间
     disk->createFile("file");
     disk->setLastModified("file", timestamp);
-    EXPECT_EQ(timestamp, disk->getLastModified("file"));
+    std::cout << "[setLastModified] successfully" << std::endl;
+    EXPECT_EQ(timestamp.epochTime(), disk->getLastModified("file").epochTime());
 }
 
-TEST_F(DiskTest, writeFile)
+TEST_F(DiskTestCubeFS, writeFile)
 {
     {
         std::unique_ptr<DB::WriteBuffer> out = this->disk->writeFile("test_file"); //IDisk后两个参数有默认值
@@ -207,7 +210,7 @@ TEST_F(DiskTestCubeFS, readFile)
     // Test SEEK_SET
     {
         String buf(4, '0');
-        in = this->disk->readFile("test_file");
+        std::unique_ptr<DB::SeekableReadBuffer> in = this->disk->readFile("test_file");
 
         in->seek(5, SEEK_SET);
 
@@ -231,7 +234,7 @@ TEST_F(DiskTestCubeFS, readFile)
     }
 }
 
-TEST_F(DiskTest, iterateDirectory)
+TEST_F(DiskTestCubeFS, iterateDirectory)
 {
     this->disk->createDirectories("test_dir/nested_dir/");
 
@@ -250,6 +253,14 @@ TEST_F(DiskTest, iterateDirectory)
         iter->next();
         EXPECT_FALSE(iter->isValid());
     }
+}
+
+TEST_F(DiskTestCubeFS, others)
+{
+    std::cout << "getAvailableSpace result: " << disk->getAvailableSpace() << std::endl;
+    disk->createFile("file");
+    disk->setReadOnly("file");
+    std::cout << "getLastChanged result: " << disk->getLastChanged("file") << std::endl;
 }
 
 #endif

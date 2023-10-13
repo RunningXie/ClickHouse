@@ -37,6 +37,7 @@ namespace ErrorCodes
 
 constexpr uint32_t AttrModifyTime = 1 << 3;
 constexpr uint32_t AttrAccessTime = 1 << 4;
+const int default_readdir_count = 10000;
 std::mutex DiskCubeFS::reservation_mutex;
 using DiskCubeFSPtr = std::shared_ptr<DiskCubeFS>;
 
@@ -256,7 +257,7 @@ void DiskCubeFS::listFiles(const String & path, std::vector<String> & file_names
     {
         throwFromErrnoWithPath("Cannot open: " + full_path.string(), full_path, ErrorCodes::CANNOT_OPEN_FILE);
     }
-    int count = 10000;
+    int count = default_readdir_count;
     while (true)
     {
         std::vector<cfs_dirent> direntsInfo(count);
@@ -353,17 +354,33 @@ private:
         {
             throwFromErrnoWithPath("Cannot open: " + dir_path, fs::path(dir_path), ErrorCodes::CANNOT_OPEN_FILE);
         }
-        GoSlice dirents_slice;
-        int result = cfs_readdir(id, fd, dirents_slice, 0);
-        if (result < 0)
+
+        int count = default_readdir_count;
+        while (true)
         {
-            throwFromErrnoWithPath("Cannot readdir: " + dir_path, fs::path(dir_path), ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
-        }
-        dirents.resize(dirents_slice.len);
-        for (auto i = 0; i < dirents_slice.len; ++i)
-        {
-            char * entry = static_cast<char *>(dirents_slice.data);
-            dirents[i] = entry;
+            std::vector<cfs_dirent> direntsInfo(count);
+
+            std::memset(direntsInfo.data(), 0, count * sizeof(cfs_dirent_info));
+
+
+            int num_entries = cfs_readdir(settings->id, fd, {direntsInfo.data(), count, count}, count);
+            if (num_entries < 0)
+            {
+                throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+            }
+            std::cout << "readdir result, num_entries: " << num_entries << std::endl;
+            if (num_entries < count)
+            {
+                for (int i = 0; i < num_entries; i++)
+                {
+                    std::string file_name(direntsInfo[i].name);
+                    std::cout << "filename: " << file_name << std::endl;
+                    dirents.emplace_back(file_name);
+                }
+                cfs_close(settings->id, fd);
+                return;
+            }
+            count = count * 2;
         }
     }
 
@@ -377,7 +394,7 @@ private:
 DiskDirectoryIteratorPtr DiskCubeFS::iterateDirectory(const String & path)
 {
     fs::path meta_path = fs::path(disk_path) / path;
-    if (!broken && exists(meta_path) && isDirectory(meta_path))
+    if (!broken && directoryExists(meta_path))
         return std::make_unique<DiskCubeFSDirectoryIterator>(settings->id, meta_path.string());
     else
         return std::make_unique<DiskCubeFSDirectoryIterator>();
@@ -491,9 +508,9 @@ for (const auto & filename : file_names)
     }
 }
 
+//todo: 需要给cubefs加日志排查
 void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & timestamp)
 {
-    FS::setModificationTime(fs::path(disk_path) / path, timestamp.epochTime());
     cfs_stat_info stat = getFileAttributes(path);
     stat.atime = timestamp.epochTime();
     stat.mtime = timestamp.epochTime();
@@ -636,6 +653,14 @@ bool DiskCubeFS::fileExists(const String & path) const
     return (result == 0) && (S_ISREG(stat.mode));
 }
 
+bool DiskCubeFS::directoryExists(const String & path) const
+{
+    fs::path full_path = fs::path(disk_path) / path;
+    cfs_stat_info stat;
+    int result = cfs_getattr(settings->id, const_cast<char *>(full_path.string().c_str()), &stat);
+    return (result == 0) && (S_ISDIR(stat.mode));
+}
+
 std::optional<size_t> DiskCubeFS::fileSizeSafe(const fs::path & path)
 {
     cfs_stat_info stat;
@@ -661,6 +686,7 @@ DiskCubeFS::readFile(const String & path, const ReadSettings &, std::optional<si
 {
 if (!fileExists(path))
     {
+        fs::path full_path = fs::path(disk_path) / path;
         throwFromErrnoWithPath("File does not exists: " + full_path.string(), full_path, ErrorCodes::FILE_DOESNT_EXIST);
     }
     return std::make_unique<ReadBufferFromCubeFS>(settings->id, fs::path(disk_path) / path, O_RDONLY | O_CLOEXEC);
