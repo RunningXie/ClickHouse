@@ -209,4 +209,4 @@ class Test_cubefs_for_add_column(base.Base):
 
 if __name__=="__main__":
 	pytest.main(['-v', '-n8' , '--dist=loadscope', 'test_cubefs_for_mutation.py'])
-	# pytest.main(['-s' , 'test_cubefs_for_mutation.py'])
+	#pytest.main(['-s' , 'test_cubefs_for_mutation.py'])

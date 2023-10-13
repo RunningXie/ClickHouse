@@ -1,4 +1,3 @@
-SET union_default_mode = 'DISTINCT';
 WITH temperature AS (
   SELECT dt,
          device_name,
@@ -47,4 +46,5 @@ SELECT DISTINCT device_name,
        'SUMMER'
 FROM temperature
 WHERE dt >= DATE '2019-06-01'
-  AND dt < DATE '2019-09-01';
+  AND dt < DATE '2019-09-01'
+SETTINGS union_default_mode = 'DISTINCT';

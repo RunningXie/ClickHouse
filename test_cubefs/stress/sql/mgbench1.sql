@@ -1,4 +1,4 @@
-CREATE TABLE if not exists mgbench.logs1 (
+CREATE TABLE if not exists mgbench.logs1  UUID '28f1c61c-2970-457a-bffe-454156ddcfea' (
   log_time      DateTime,
   machine_name  LowCardinality(String),
   machine_group LowCardinality(String),
@@ -22,4 +22,5 @@ CREATE TABLE if not exists mgbench.logs1 (
   bytes_out     Nullable(Float32)
 )
 ENGINE = ReplicatedMergeTree('/tables/mgbench/logs1', '{replica}')
-ORDER BY (machine_group, machine_name, log_time);
+ORDER BY (machine_group, machine_name, log_time)
+SETTINGS storage_policy='cubefs_only';

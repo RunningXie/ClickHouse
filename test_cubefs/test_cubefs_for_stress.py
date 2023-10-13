@@ -123,12 +123,14 @@ class Test_cubefs_for_check_data(base.Base):
 		result = super().executeSQLFile(super().client1(), file_name)
 		end = time.time()
 		print(f"耗时{end - start}秒")
-		with open(expect_file_name, 'crw') as f:
-			f.write(result)
+		# with open(expect_file_name, 'crw') as f:
+		# 	f.write(result)
+		print(result)
 
 	def test_case1(self):
 		cases = []
-		for i in range(0, 1):
+		for i in range(0, 1000000000):
+		# for i in range(0, 1):
 			cases.append("./stress/sql/case_1_1.sql")
 			cases.append("./stress/sql/case_1_2.sql")
 			cases.append("./stress/sql/case_1_3.sql")

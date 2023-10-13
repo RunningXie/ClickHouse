@@ -1,4 +1,3 @@
-SET union_default_mode = 'DISTINCT';
 SELECT yr,
        mo,
        SUM(coffee_hourly_avg) AS coffee_monthly_sum,
@@ -38,4 +37,5 @@ FROM (
 GROUP BY yr,
          mo
 ORDER BY yr,
-         mo;
+         mo
+SETTINGS union_default_mode = 'DISTINCT';
