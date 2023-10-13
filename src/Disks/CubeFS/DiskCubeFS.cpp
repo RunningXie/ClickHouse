@@ -363,10 +363,10 @@ private:
             std::memset(direntsInfo.data(), 0, count * sizeof(cfs_dirent_info));
 
 
-            int num_entries = cfs_readdir(settings->id, fd, {direntsInfo.data(), count, count}, count);
+            int num_entries = cfs_readdir(id, fd, {direntsInfo.data(), count, count}, count);
             if (num_entries < 0)
             {
-                throwFromErrnoWithPath("Cannot readdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+                throwFromErrnoWithPath("Cannot readdir: " + dir_path, fs::path(dir_path), ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
             }
             std::cout << "readdir result, num_entries: " << num_entries << std::endl;
             if (num_entries < count)
@@ -377,7 +377,6 @@ private:
                     std::cout << "filename: " << file_name << std::endl;
                     dirents.emplace_back(file_name);
                 }
-                cfs_close(settings->id, fd);
                 return;
             }
             count = count * 2;
