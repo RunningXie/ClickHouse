@@ -12,7 +12,7 @@ namespace DB
         }
 }
 
-int mainEntryClickHouseTiger(int argc, char ** argv)
+void readWriteTest()
 {
     int64_t id = cfs_new_client();
     if (id <= 0)
@@ -106,7 +106,16 @@ int mainEntryClickHouseTiger(int argc, char ** argv)
     // 关闭文件和客户端
     cfs_close(id, fd);
     cfs_close_client(id);
-    std::cout<<"argc = "<<argc<<std::endl;
+}
+
+int mainEntryClickHouseTiger(int argc, char ** argv)
+{
+    std::thread worker(readWriteTest); // 创建子线程并执行 workerThread 函数
+
+    // 在主线程中执行其他操作...
+
+    worker.join(); // 等待子线程执行完毕
+    std::cout << "argc = " << argc << std::endl;
     std::cout<<"argv = "<<argv<<std::endl;
     return 0;
 }

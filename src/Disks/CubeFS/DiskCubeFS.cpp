@@ -145,7 +145,6 @@ UInt64 DiskCubeFS::getTotalSpace() const
 UInt64 DiskCubeFS::getAvailableSpace() const
 {
     throwFromErrnoWithPath("DiskCubeFs does not support function getAvailableSpace!", disk_path, ErrorCodes::LOGICAL_ERROR);
-    return -1;
 }
 
 UInt64 DiskCubeFS::getUnreservedSpace() const
@@ -220,8 +219,7 @@ void DiskCubeFS::createDirectory(const String & path)
 void DiskCubeFS::createDirectories(const String & path)
 {
     fs::path full_path = fs::path(disk_path) / path;
-    std::cout << "client id: " << settings->id << std::endl;
-    std::cout << "path: " << const_cast<char *>(full_path.string().c_str()) << std::endl;
+LOG_DEBUG(logger, "[createDirectories] try to cfs_mkdirs, path: {}", full_path.string());
     int result = cfs_mkdirs(settings->id, const_cast<char *>(full_path.string().c_str()), O_RDWR | O_CREAT);
     if (result != 0)
     {
@@ -229,6 +227,7 @@ void DiskCubeFS::createDirectories(const String & path)
         // 返回适当的错误码或执行其他操作
         throwFromErrnoWithPath("Cannot mkdir: " + full_path.string(), full_path, ErrorCodes::CANNOT_CREATE_DIRECTORY);
     }
+LOG_DEBUG(logger, "[createDirectories] cfs_mkdirs successfully, path: {}", full_path.string());
 }
 
 void DiskCubeFS::clearDirectory(const String & path)
@@ -571,10 +570,12 @@ DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, ContextPtr, S
     : name(name_), disk_path(path_), settings(std::move(settings_)), logger(&Poco::Logger::get("DiskCubeFS"))
 {
     std::cout << "client id: " << settings->id << std::endl;
+LOG_DEBUG(logger, "[DiskCubeFS] try to start client");
     if (cfs_start_client(settings->id) != 0)
     {
         throwFromErrnoWithPath("Start cfs client failed", "", ErrorCodes::LOGICAL_ERROR);
     }
+LOG_DEBUG(logger, "[DiskCubeFS] start client successfully");
     createDirectories("");
 }
 
