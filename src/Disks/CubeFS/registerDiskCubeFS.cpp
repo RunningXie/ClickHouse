@@ -16,29 +16,30 @@ int64_t getClientId()
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Failed to create client");
     }
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "get client successfully, id: {}", id);
     return id;
 }
 
-DiskCubeFS::SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
-{
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "volumn name: {}", config.getString(config_prefix + ".vol_name"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "master address: {}", config.getString(config_prefix + ".master_addr"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log directory: {}", config.getString(config_prefix + ".log_dir"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log level: {}", config.getString(config_prefix + ".log_level"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "access key: {}", config.getString(config_prefix + ".access_key"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "secret key: {}", config.getString(config_prefix + ".secret_key"));
-    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "push address: {}", config.getString(config_prefix + ".push_addr"));
+// DiskCubeFS::SettingsPtr getSettings(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+// {
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "volumn name: {}", config.getString(config_prefix + ".vol_name"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "master address: {}", config.getString(config_prefix + ".master_addr"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log directory: {}", config.getString(config_prefix + ".log_dir"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log level: {}", config.getString(config_prefix + ".log_level"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "access key: {}", config.getString(config_prefix + ".access_key"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "secret key: {}", config.getString(config_prefix + ".secret_key"));
+//     LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "push address: {}", config.getString(config_prefix + ".push_addr"));
 
-    return std::make_unique<DiskCubeFSSettings>(
-        getClientId(),
-        config.getString(config_prefix + ".vol_name"),
-        config.getString(config_prefix + ".master_addr"),
-        config.getString(config_prefix + ".log_dir"),
-        config.getString(config_prefix + ".log_level", "debug"),
-        config.getString(config_prefix + ".access_key"),
-        config.getString(config_prefix + ".secret_key"),
-        config.getString(config_prefix + ".push_addr"));
-}
+//     return std::make_unique<DiskCubeFSSettings>(
+//         getClientId(),
+//         config.getString(config_prefix + ".vol_name"),
+//         config.getString(config_prefix + ".master_addr"),
+//         config.getString(config_prefix + ".log_dir"),
+//         config.getString(config_prefix + ".log_level", "debug"),
+//         config.getString(config_prefix + ".access_key"),
+//         config.getString(config_prefix + ".secret_key"),
+//         config.getString(config_prefix + ".push_addr"));
+// }
 
 void setClientInfo(int id, const char * key, char * value)
 {
@@ -55,26 +56,43 @@ std::cout<<"ok!"<<std::endl;
 
 void registerDiskCubeFS(DiskFactory & factory) //方法声明直接写在了registerDisks.cpp里了
 {
-    auto creator = [](const String & name,
-                      const Poco::Util::AbstractConfiguration & config,
-                      const String & config_prefix,
-                      ContextPtr context,
-                      const DisksMap & /*map*/) -> DiskPtr
-    {
-       auto settings= getSettings(config, config_prefix);
-        // 设置客户端信息
-        setClientInfo(settings->id, "volName", const_cast<char *>(settings->vol_name.data()));
-        setClientInfo(settings->id, "masterAddr", const_cast<char *>(settings->master_addr.data()));
-        setClientInfo(settings->id, "logDir", const_cast<char *>(settings->log_dir.data()));
-        setClientInfo(settings->id, "logLevel", const_cast<char *>(settings->log_level.data()));
-        setClientInfo(settings->id, "accessKey", const_cast<char *>(settings->access_key.data()));
-        setClientInfo(settings->id, "secretKey", const_cast<char *>(settings->secret_key.data()));
-        setClientInfo(settings->id, "pushAddr", const_cast<char *>(settings->push_addr.data()));
+auto id = getClientId();
+auto creator = [id](
+                   const String & name,
+                   const Poco::Util::AbstractConfiguration & config,
+                   const String & config_prefix,
+                   ContextPtr context,
+                   const DisksMap & /*map*/) -> DiskPtr
+{
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "volumn name: {}", config.getString(config_prefix + ".vol_name"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "master address: {}", config.getString(config_prefix + ".master_addr"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log directory: {}", config.getString(config_prefix + ".log_dir"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "log level: {}", config.getString(config_prefix + ".log_level"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "access key: {}", config.getString(config_prefix + ".access_key"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "secret key: {}", config.getString(config_prefix + ".secret_key"));
+    LOG_DEBUG(&Poco::Logger::get("DiskCubeFS"), "push address: {}", config.getString(config_prefix + ".push_addr"));
+    auto settings = std::make_unique<DiskCubeFSSettings>(
+        id,
+        config.getString(config_prefix + ".vol_name"),
+        config.getString(config_prefix + ".master_addr"),
+        config.getString(config_prefix + ".log_dir"),
+        config.getString(config_prefix + ".log_level", "debug"),
+        config.getString(config_prefix + ".access_key"),
+        config.getString(config_prefix + ".secret_key"),
+        config.getString(config_prefix + ".push_addr"));
+    // 设置客户端信息
+    setClientInfo(settings->id, "volName", const_cast<char *>(settings->vol_name.data()));
+    setClientInfo(settings->id, "masterAddr", const_cast<char *>(settings->master_addr.data()));
+    setClientInfo(settings->id, "logDir", const_cast<char *>(settings->log_dir.data()));
+    setClientInfo(settings->id, "logLevel", const_cast<char *>(settings->log_level.data()));
+    setClientInfo(settings->id, "accessKey", const_cast<char *>(settings->access_key.data()));
+    setClientInfo(settings->id, "secretKey", const_cast<char *>(settings->secret_key.data()));
+    setClientInfo(settings->id, "pushAddr", const_cast<char *>(settings->push_addr.data()));
 
-        std::shared_ptr<IDisk> cubeFSdisk = std::make_shared<DiskCubeFS>(
-            name, config.getString(config_prefix + ".path", ""), context, getSettings(config, config_prefix));
-        return std::make_shared<DiskRestartProxy>( cubeFSdisk);
-    };
-    factory.registerDiskType("cubefs", creator);
+    std::shared_ptr<IDisk> cubeFSdisk
+        = std::make_shared<DiskCubeFS>(name, config.getString(config_prefix + ".path", ""), context, getSettings(config, config_prefix));
+    return std::make_shared<DiskRestartProxy>(cubeFSdisk);
+};
+factory.registerDiskType("cubefs", creator);
 }
 }

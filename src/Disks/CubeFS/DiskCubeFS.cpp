@@ -144,7 +144,8 @@ UInt64 DiskCubeFS::getTotalSpace() const
 
 UInt64 DiskCubeFS::getAvailableSpace() const
 {
-    return getTotalSpace();
+    throwFromErrnoWithPath("DiskCubeFs does not support function getAvailableSpace!", disk_path, ErrorCodes::LOGICAL_ERROR);
+    return -1;
 }
 
 UInt64 DiskCubeFS::getUnreservedSpace() const
@@ -507,7 +508,7 @@ for (const auto & filename : file_names)
     }
 }
 
-//todo: 需要给cubefs加日志排查
+//todo: 修改不成功，需要给cubefs加日志排查
 void DiskCubeFS::setLastModified(const String & path, const Poco::Timestamp & timestamp)
 {
     cfs_stat_info stat = getFileAttributes(path);
@@ -552,34 +553,7 @@ void DiskCubeFS::setReadOnly(const String & path)
 
 void DiskCubeFS::createHardLink(const String &, const String &)
 {
-    LOG_DEBUG(logger, "Need create hard link function!");
-    // fs::path full_src_path = fs::path(disk_path) / src_path;
-    // fs::path full_dst_path = fs::path(disk_path) / dst_path;
-    // // 使用 cfs_link 函数来创建硬链接
-    // if (cfs_link(settings->id, const_cast<char *>(full_src_path.string().c_str()), const_cast<char *>(full_dst_path.string().c_str())) != 0)
-    // {
-    //     auto link_errno = errno;
-    //     if (errno == EEXIST)
-    //     {
-    //         // 目标链接已存在，进行进一步的检查
-    //         cfs_stat_info source_stat = getFileAttributes(src_path);
-    //         cfs_stat_info destination_stat = getFileAttributes(dst_path);
-    //         // 检查源文件和目标链接的 inode 是否相同
-    //         if (source_stat.ino != destination_stat.ino)
-    //         {
-    //             throwFromErrnoWithPath(
-    //                 "Destination file " + destination_path.string() + " is already exist and have different inode.",
-    //                 destination_path,
-    //                 ErrorCodes::CANNOT_LINK,
-    //                 link_errno);
-    //         }
-    //     }
-    //     else
-    //     {
-    //         throwFromErrnoWithPath(
-    //             "Cannot link " + full_src_path.string() + " to " + full_dst_path.string(), destination_path, ErrorCodes::CANNOT_LINK);
-    //     }
-    // }
+    throwFromErrnoWithPath("DiskCubeFs does not support function createHardLink!", disk_path, ErrorCodes::LOGICAL_ERROR);
 }
 
 DiskCubeFS::DiskCubeFS(const String & name_, const String & path_, SettingsPtr settings_)
