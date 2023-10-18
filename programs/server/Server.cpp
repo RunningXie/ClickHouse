@@ -178,6 +178,99 @@ int mainEntryClickHouseServer(int argc, char ** argv)
             app.shouldSetupWatchdog(argv[0]);
     }
 
+
+    int64_t id = cfs_new_client();
+    if (id <= 0)
+    {
+        LOG_ERROR(&app.logger(), "new client failed");
+        return;
+    }
+
+    // 设置客户端信息
+    if (cfs_set_client(id, strdup("volName"), strdup("xieyichen")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("masterAddr"), strdup("cfs-south.oppo.local")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("logDir"), strdup("/home/service/var/logs/cfs/test-log")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("logLevel"), strdup("debug")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("accessKey"), strdup("jRlZO65q7XlH5bnV")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("secretKey"), strdup("V1m730UzREHaK1jCkC0kL0cewOX0kH3K")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+    if (cfs_set_client(id, strdup("pushAddr"), strdup("cfs.dg-push.wanyol.com")) != 0)
+    {
+        LOG_ERROR(&app.logger(), "set client information failed");
+        cfs_close_client(id);
+        return;
+    }
+
+    // 启动客户端
+    if (cfs_start_client(id) != 0)
+    {
+        LOG_ERROR(&app.logger(), "start client failed");
+        cfs_close_client(id);
+        return;
+    }
+
+    // 打开文件并读写内容
+    int fd = cfs_open(id, strdup("/test_dir/file.txt"), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd < 0)
+    {
+        LOG_ERROR(&app.logger(), "open file failed");
+        cfs_close_client(id);
+        return;
+    }
+
+    const char * data = "Hello, world!";
+    if (cfs_write(id, fd, static_cast<void *>(const_cast<char *>(data)), strlen(data), 0) < 0)
+    {
+        LOG_ERROR(&app.logger(), "write file failed");
+        cfs_close(id, fd);
+        cfs_close_client(id);
+        return;
+    }
+
+    char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
+    if (cfs_read(id, fd, static_cast<void *>(const_cast<char *>(buffer)), sizeof(buffer), 0) < 0)
+    {
+        LOG_ERROR(&app.logger(), "read file failed");
+        cfs_close(id, fd);
+        cfs_close_client(id);
+        return;
+    }
+    LOG_DEBUG(&app.logger(), "read file content: {}", buffer);
+
+    // 关闭文件和客户端
+    cfs_close(id, fd);
+    cfs_close_client(id);
+
     try
     {
         return app.run(argc, argv);
@@ -517,6 +610,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
     registerTableFunctions();
     registerStorages();
     registerDictionaries();
+    LOG_DEBUG(log, "[main] Going to register disks!");
     registerDisks();
     registerFormats();
     registerRemoteFileMetadatas();

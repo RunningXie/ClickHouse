@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <thread>
 namespace DB
 {
     namespace ErrorCodes
@@ -18,7 +18,7 @@ void readWriteTest()
     if (id <= 0)
     {
         printf("Failed to create client\n");
-        return -1;
+        return ;
     }
 
     // 设置客户端信息
@@ -26,43 +26,43 @@ void readWriteTest()
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("masterAddr"), strdup("cfs-south.oppo.local")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("logDir"), strdup("/home/service/var/logs/cfs/test-log")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("logLevel"), strdup("debug")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("accessKey"), strdup("jRlZO65q7XlH5bnV")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("secretKey"), strdup("V1m730UzREHaK1jCkC0kL0cewOX0kH3K")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
     if (cfs_set_client(id, strdup("pushAddr"), strdup("cfs.dg-push.wanyol.com")) != 0)
     {
         printf("Failed to set client info\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
 
     // 启动客户端
@@ -70,7 +70,7 @@ void readWriteTest()
     {
         printf("Failed to start client \n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
 
     // 打开文件并读写内容
@@ -79,7 +79,7 @@ void readWriteTest()
     {
         printf("Failed to open file\n");
         cfs_close_client(id);
-        return -1;
+        return ;
     }
 
     const char * data = "Hello, world!";
@@ -88,7 +88,7 @@ void readWriteTest()
         printf("Failed to write file\n");
         cfs_close(id, fd);
         cfs_close_client(id);
-        return -1;
+        return ;
     }
 
     char buffer[1024];
@@ -98,7 +98,7 @@ void readWriteTest()
         printf("Failed to read file\n");
         cfs_close(id, fd);
         cfs_close_client(id);
-        return -1;
+        return ;
     }
 
     printf("Read file content: %s\n", buffer);
