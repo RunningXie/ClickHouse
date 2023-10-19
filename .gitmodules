@@ -264,4 +264,5 @@
 	url = https://github.com/zlib-ng/minizip-ng
 [submodule "contrib/cubefs"]
 	path = contrib/cubefs
-	url = https://github.com/cubefs/cubefs.git
+	url = https://github.com/RunningXie/cubefs.git
+	branch = fix_sdk_compilation
