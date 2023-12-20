@@ -61,7 +61,7 @@ private:
     using InsertsByTime = std::set<LogEntryPtr, ByTime>;
 
     StorageReplicatedMergeTree & storage;
-    ReplicatedMergeTreeMergeStrategyPicker & merge_strategy_picker;
+    std::shared_ptr<ReplicatedMergeTreeMergeStrategyPicker>  merge_strategy_picker;
     MergeTreeDataFormatVersion format_version;
 
     String zookeeper_path;
@@ -201,7 +201,7 @@ private:
       */
     bool shouldExecuteLogEntry(
         const LogEntry & entry, String & out_postpone_reason,
-        MergeTreeDataMergerMutator & merger_mutator, MergeTreeData & data,
+        std::shared_ptr<MergeTreeDataMergerMutator>& merger_mutator, MergeTreeData& data,
         std::lock_guard<std::mutex> & state_lock) const;
 
     Int64 getCurrentMutationVersionImpl(const String & partition_id, Int64 data_version, std::lock_guard<std::mutex> & /* state_lock */) const;
@@ -282,7 +282,7 @@ private:
     size_t current_multi_batch_size = 1;
 
 public:
-    ReplicatedMergeTreeQueue(StorageReplicatedMergeTree & storage_, ReplicatedMergeTreeMergeStrategyPicker & merge_strategy_picker_);
+    ReplicatedMergeTreeQueue(StorageReplicatedMergeTree& storage_, std::shared_ptr<ReplicatedMergeTreeMergeStrategyPicker> merge_strategy_picker_);
     ~ReplicatedMergeTreeQueue();
 
     /// Clears queue state
@@ -358,7 +358,7 @@ public:
     };
 
     using SelectedEntryPtr = std::shared_ptr<SelectedEntry>;
-    SelectedEntryPtr selectEntryToProcess(MergeTreeDataMergerMutator & merger_mutator, MergeTreeData & data);
+    SelectedEntryPtr selectEntryToProcess(std::shared_ptr<MergeTreeDataMergerMutator>& merger_mutator, MergeTreeData& data);
 
     /** Execute `func` function to handle the action.
       * In this case, at runtime, mark the queue element as running

@@ -206,7 +206,7 @@ public:
     /// Add a part to the queue of parts whose data you want to check in the background thread.
     void enqueuePartForCheck(const String & part_name, time_t delay_to_check_seconds = 0)
     {
-        part_check_thread.enqueuePart(part_name, delay_to_check_seconds);
+        part_check_thread->enqueuePart(part_name, delay_to_check_seconds);
     }
 
     CheckResults checkData(const ASTPtr & query, ContextPtr context) override;
@@ -257,6 +257,15 @@ public:
         const String & disk_name,
         const String & part_name,
         const String & value) const override;
+
+    DistributeLockGuardPtr getDistributeLockGuardInInit(
+        const String& disk_name,
+        const String& part_name,
+        const String& value) const override;
+
+    DistributeLockGuardPtr getDistributeLockGuardImpl(const zkutil::ZooKeeperPtr& zookeeper, const String& disk_name,
+        const String& part_name,
+        const String& value) const;
 
     /// Unlock shared data part in zookeeper
     /// Return true if data unlocked
@@ -380,16 +389,16 @@ private:
 
     InterserverIOEndpointPtr data_parts_exchange_endpoint;
 
-    MergeTreeDataSelectExecutor reader;
-    MergeTreeDataWriter writer;
-    MergeTreeDataMergerMutator merger_mutator;
+    std::shared_ptr<MergeTreeDataSelectExecutor> reader;
+    std::shared_ptr<MergeTreeDataWriter> writer;
+    std::shared_ptr<MergeTreeDataMergerMutator> merger_mutator;
 
-    MergeStrategyPicker merge_strategy_picker;
+    std::shared_ptr<MergeStrategyPicker> merge_strategy_picker;
 
     /** The queue of what needs to be done on this replica to catch up with everyone. It is taken from ZooKeeper (/replicas/me/queue/).
      * In ZK entries in chronological order. Here it is not necessary.
      */
-    ReplicatedMergeTreeQueue queue;
+    std::shared_ptr<ReplicatedMergeTreeQueue> queue;
     std::atomic<time_t> last_queue_update_start_time{0};
     std::atomic<time_t> last_queue_update_finish_time{0};
 
@@ -397,7 +406,7 @@ private:
     String last_queue_update_exception;
     String getLastQueueUpdateException() const;
 
-    DataPartsExchange::Fetcher fetcher;
+    std::shared_ptr<DataPartsExchange::Fetcher> fetcher;
 
     /// When activated, replica is initialized and startup() method could exit
     Poco::Event startup_event;
@@ -429,15 +438,13 @@ private:
     BackgroundSchedulePool::TaskHolder mutations_finalizing_task;
 
     /// A thread that removes old parts, log entries, and blocks.
-    ReplicatedMergeTreeCleanupThread cleanup_thread;
-
+    std::shared_ptr<ReplicatedMergeTreeCleanupThread> cleanup_thread;
     /// A thread that checks the data of the parts, as well as the queue of the parts to be checked.
-    ReplicatedMergeTreePartCheckThread part_check_thread;
-
+    std::shared_ptr<ReplicatedMergeTreePartCheckThread> part_check_thread;
     /// A thread that processes reconnection to ZooKeeper when the session expires.
-    ReplicatedMergeTreeRestartingThread restarting_thread;
+    std::shared_ptr<ReplicatedMergeTreeRestartingThread> restarting_thread;
 
-    PartMovesBetweenShardsOrchestrator part_moves_between_shards_orchestrator;
+    std::shared_ptr<PartMovesBetweenShardsOrchestrator> part_moves_between_shards_orchestrator;
 
     /// True if replica was created for existing table with fixed granularity
     bool other_replicas_fixed_granularity = false;

@@ -150,7 +150,7 @@ void ReplicatedMergeTreeSink::consume(Chunk chunk)
     if (quorum)
         checkQuorumPrecondition(zookeeper);
 
-    auto part_blocks = storage.writer.splitBlockIntoParts(block, max_parts_per_block, metadata_snapshot, context);
+    auto part_blocks = storage.writer->splitBlockIntoParts(block, max_parts_per_block, metadata_snapshot, context);
     std::vector<ReplicatedMergeTreeSink::DelayedChunk::Partition> partitions;
     String block_dedup_token;
 
@@ -160,7 +160,7 @@ void ReplicatedMergeTreeSink::consume(Chunk chunk)
 
         /// Write part to the filesystem under temporary name. Calculate a checksum.
 
-        auto temp_part = storage.writer.writeTempPart(current_block, metadata_snapshot, context);
+        auto temp_part = storage.writer->writeTempPart(current_block, metadata_snapshot, context);
 
         /// If optimize_on_insert setting is true, current_block could become empty after merge
         /// and we didn't create part.

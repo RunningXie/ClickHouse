@@ -683,8 +683,8 @@ static StoragePtr create(const StorageFactory::Arguments & args)
             std::move(storage_settings),
             args.has_force_restore_data_flag,
             allow_renaming);
-    else
-        return StorageMergeTree::create(
+    else {
+        auto storage = StorageMergeTree::create(
             args.table_id,
             args.relative_data_path,
             metadata,
@@ -694,6 +694,9 @@ static StoragePtr create(const StorageFactory::Arguments & args)
             merging_params,
             std::move(storage_settings),
             args.has_force_restore_data_flag);
+        storage->init();
+        return storage;
+    }
 }
 
 

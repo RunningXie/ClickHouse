@@ -60,7 +60,7 @@ bool ReplicatedMergeMutateTaskBase::executeStep()
                 /// Part cannot be added temporarily
                 LOG_INFO(log, fmt::runtime(e.displayText()));
                 retryable_error = true;
-                storage.cleanup_thread.wakeup();
+                storage.cleanup_thread->wakeup();
             }
             else
                 tryLogCurrentException(log, __PRETTY_FUNCTION__);
@@ -86,7 +86,7 @@ bool ReplicatedMergeMutateTaskBase::executeStep()
 
     if (!retryable_error && saved_exception)
     {
-        std::lock_guard lock(storage.queue.state_mutex);
+        std::lock_guard lock(storage.queue->state_mutex);
 
         auto & log_entry = selected_entry->log_entry;
 
@@ -95,13 +95,13 @@ bool ReplicatedMergeMutateTaskBase::executeStep()
         if (log_entry->type == ReplicatedMergeTreeLogEntryData::MUTATE_PART)
         {
             /// Record the exception in the system.mutations table.
-            Int64 result_data_version = MergeTreePartInfo::fromPartName(log_entry->new_part_name, storage.queue.format_version)
+            Int64 result_data_version = MergeTreePartInfo::fromPartName(log_entry->new_part_name, storage.queue->format_version)
                 .getDataVersion();
             auto source_part_info = MergeTreePartInfo::fromPartName(
-                log_entry->source_parts.at(0), storage.queue.format_version);
+                log_entry->source_parts.at(0), storage.queue->format_version);
 
-            auto in_partition = storage.queue.mutations_by_partition.find(source_part_info.partition_id);
-            if (in_partition != storage.queue.mutations_by_partition.end())
+            auto in_partition = storage.queue->mutations_by_partition.find(source_part_info.partition_id);
+            if (in_partition != storage.queue->mutations_by_partition.end())
             {
                 auto mutations_begin_it = in_partition->second.upper_bound(source_part_info.getDataVersion());
                 auto mutations_end_it = in_partition->second.upper_bound(result_data_version);
@@ -132,7 +132,7 @@ bool ReplicatedMergeMutateTaskBase::executeImpl()
     {
         try
         {
-            storage.queue.removeProcessedEntry(storage.getZooKeeper(), selected_entry->log_entry);
+            storage.queue->removeProcessedEntry(storage.getZooKeeper(), selected_entry->log_entry);
             state = State::SUCCESS;
         }
         catch (...)

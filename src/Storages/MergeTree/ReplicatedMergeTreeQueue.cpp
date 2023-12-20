@@ -23,7 +23,8 @@ namespace ErrorCodes
 }
 
 
-ReplicatedMergeTreeQueue::ReplicatedMergeTreeQueue(StorageReplicatedMergeTree & storage_, ReplicatedMergeTreeMergeStrategyPicker & merge_strategy_picker_)
+ReplicatedMergeTreeQueue::ReplicatedMergeTreeQueue(StorageReplicatedMergeTree& storage_,
+    std::shared_ptr<ReplicatedMergeTreeMergeStrategyPicker>  merge_strategy_picker_)
     : storage(storage_)
     , merge_strategy_picker(merge_strategy_picker_)
     , format_version(storage.format_version)
@@ -174,8 +175,7 @@ bool ReplicatedMergeTreeQueue::load(zkutil::ZooKeeperPtr zookeeper)
 
     updateTimesInZooKeeper(zookeeper, min_unprocessed_insert_time_changed, {});
 
-    merge_strategy_picker.refreshState();
-
+    merge_strategy_picker->refreshState();
     LOG_TRACE(log, "Loaded queue");
     return updated;
 }
@@ -708,7 +708,7 @@ int32_t ReplicatedMergeTreeQueue::pullLogsToQueue(zkutil::ZooKeeperPtr zookeeper
             if (!copied_entries.empty())
             {
                 LOG_DEBUG(log, "Pulled {} entries to queue.", copied_entries.size());
-                merge_strategy_picker.refreshState();
+                merge_strategy_picker->refreshState();
             }
         }
 
@@ -1145,7 +1145,7 @@ bool ReplicatedMergeTreeQueue::addFuturePartIfNotCoveredByThem(const String & pa
 bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
     const LogEntry & entry,
     String & out_postpone_reason,
-    MergeTreeDataMergerMutator & merger_mutator,
+    std::shared_ptr<MergeTreeDataMergerMutator>& merger_mutator,
     MergeTreeData & data,
     std::lock_guard<std::mutex> & state_lock) const
 {
@@ -1199,7 +1199,7 @@ bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
             }
         }
 
-        if (merger_mutator.merges_blocker.isCancelled())
+        if (merger_mutator->merges_blocker.isCancelled())
         {
             out_postpone_reason = fmt::format(
                 "Not executing log entry {} of type {} for part {} because merges and mutations are cancelled now.",
@@ -1224,12 +1224,11 @@ bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
                 return false;
             }
         }
-
-        if (merge_strategy_picker.shouldMergeOnSingleReplica(entry))
+        if (merge_strategy_picker->shouldMergeOnSingleReplica(entry))
         {
-            auto replica_to_execute_merge = merge_strategy_picker.pickReplicaToExecuteMerge(entry);
+            auto replica_to_execute_merge = merge_strategy_picker->pickReplicaToExecuteMerge(entry);
 
-            if (replica_to_execute_merge && !merge_strategy_picker.isMergeFinishedByReplica(replica_to_execute_merge.value(), entry))
+            if (replica_to_execute_merge && !merge_strategy_picker->isMergeFinishedByReplica(replica_to_execute_merge.value(), entry))
             {
                 String reason = "Not executing merge for the part " + entry.new_part_name
                     +  ", waiting for " + replica_to_execute_merge.value() + " to execute merge.";
@@ -1238,8 +1237,8 @@ bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
             }
         }
 
-        UInt64 max_source_parts_size = entry.type == LogEntry::MERGE_PARTS ? merger_mutator.getMaxSourcePartsSizeForMerge()
-                                                                           : merger_mutator.getMaxSourcePartSizeForMutation();
+        UInt64 max_source_parts_size = entry.type == LogEntry::MERGE_PARTS ? merger_mutator->getMaxSourcePartsSizeForMerge()
+            : merger_mutator->getMaxSourcePartSizeForMutation();
         /** If there are enough free threads in background pool to do large merges (maximal size of merge is allowed),
           * then ignore value returned by getMaxSourcePartsSizeForMerge() and execute merge of any size,
           * because it may be ordered by OPTIMIZE or early with different settings.
@@ -1253,7 +1252,7 @@ bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
 
             if (isTTLMergeType(entry.merge_type))
             {
-                if (merger_mutator.ttl_merges_blocker.isCancelled())
+                if (merger_mutator->ttl_merges_blocker.isCancelled())
                 {
                     out_postpone_reason = fmt::format(
                         "Not executing log entry {} for part {} because merges with TTL are cancelled now.",
@@ -1482,7 +1481,8 @@ ReplicatedMergeTreeQueue::CurrentlyExecuting::~CurrentlyExecuting()
 }
 
 
-ReplicatedMergeTreeQueue::SelectedEntryPtr ReplicatedMergeTreeQueue::selectEntryToProcess(MergeTreeDataMergerMutator & merger_mutator, MergeTreeData & data)
+ReplicatedMergeTreeQueue::SelectedEntryPtr ReplicatedMergeTreeQueue::selectEntryToProcess(std::shared_ptr<MergeTreeDataMergerMutator>& merger_mutator,
+    MergeTreeData& data)
 {
     LogEntryPtr entry;
 
