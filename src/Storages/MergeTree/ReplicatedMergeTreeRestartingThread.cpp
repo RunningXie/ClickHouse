@@ -156,8 +156,8 @@ bool ReplicatedMergeTreeRestartingThread::runImpl()
     storage.mutations_updating_task->activateAndSchedule();
     storage.mutations_finalizing_task->activateAndSchedule();
     storage.merge_selecting_task->activateAndSchedule();
-    storage.cleanup_thread.start();
-    storage.part_check_thread.start();
+    storage.cleanup_thread->start();
+    storage.part_check_thread->start();
 
     return true;
 }
@@ -177,15 +177,15 @@ bool ReplicatedMergeTreeRestartingThread::tryStartup()
 
         try
         {
-            storage.queue.initialize(zookeeper);
+            storage.queue->initialize(zookeeper);
 
-            storage.queue.load(zookeeper);
+            storage.queue->load(zookeeper);
 
-            storage.queue.createLogEntriesToFetchBrokenParts();
+            storage.queue->createLogEntriesToFetchBrokenParts();
 
             /// pullLogsToQueue() after we mark replica 'is_active' (and after we repair if it was lost);
             /// because cleanup_thread doesn't delete log_pointer of active replicas.
-            storage.queue.pullLogsToQueue(zookeeper, {}, ReplicatedMergeTreeQueue::LOAD);
+            storage.queue->pullLogsToQueue(zookeeper, {}, ReplicatedMergeTreeQueue::LOAD);
         }
         catch (...)
         {
@@ -194,7 +194,7 @@ bool ReplicatedMergeTreeRestartingThread::tryStartup()
             throw;
         }
 
-        storage.queue.removeCurrentPartsFromMutations();
+        storage.queue->removeCurrentPartsFromMutations();
         storage.last_queue_update_finish_time.store(time(nullptr));
 
         updateQuorumIfWeHavePart();
@@ -251,7 +251,7 @@ void ReplicatedMergeTreeRestartingThread::removeFailedQuorumParts()
         {
             LOG_DEBUG(log, "Found part {} with failed quorum. Moving to detached. This shouldn't happen often.", part_name);
             storage.forgetPartAndMoveToDetached(part, "noquorum");
-            storage.queue.removeFailedQuorumPart(part->info);
+            storage.queue->removeFailedQuorumPart(part->info);
         }
     }
 }
@@ -373,13 +373,13 @@ void ReplicatedMergeTreeRestartingThread::partialShutdown(bool part_of_full_shut
     storage.mutations_updating_task->deactivate();
     storage.mutations_finalizing_task->deactivate();
 
-    storage.cleanup_thread.stop();
-    storage.part_check_thread.stop();
+    storage.cleanup_thread->stop();
+    storage.part_check_thread->stop();
 
     /// Stop queue processing
     {
-        auto fetch_lock = storage.fetcher.blocker.cancel();
-        auto merge_lock = storage.merger_mutator.merges_blocker.cancel();
+        auto fetch_lock = storage.fetcher->blocker.cancel();
+        auto merge_lock = storage.merger_mutator->merges_blocker.cancel();
         auto move_lock = storage.parts_mover.moves_blocker.cancel();
         storage.background_operations_assignee.finish();
     }

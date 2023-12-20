@@ -457,7 +457,7 @@ void ReplicatedMergeTreeCleanupThread::clearOldMutations()
     if (!storage_settings->finished_mutations_to_keep)
         return;
 
-    if (storage.queue.countFinishedMutations() <= storage_settings->finished_mutations_to_keep)
+    if (storage.queue->countFinishedMutations() <= storage_settings->finished_mutations_to_keep)
     {
         /// Not strictly necessary, but helps to avoid unnecessary ZooKeeper requests.
         /// If even this replica hasn't finished enough mutations yet, then we don't need to clean anything.

@@ -234,7 +234,7 @@ void ReplicatedMergeTreePartCheckThread::searchForMissingPartAndFetchIfPossible(
         if (lost_part_info.level != 0 || lost_part_info.mutation != 0)
         {
             Strings source_parts;
-            bool part_in_queue = storage.queue.checkPartInQueueAndGetSourceParts(part_name, source_parts);
+            bool part_in_queue = storage.queue->checkPartInQueueAndGetSourceParts(part_name, source_parts);
 
             /// If it's MERGE/MUTATION etc. we shouldn't replace result part with empty part
             /// because some source parts can be lost, but some of them can exist.

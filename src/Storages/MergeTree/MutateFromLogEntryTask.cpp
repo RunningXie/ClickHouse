@@ -56,9 +56,9 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MutateFromLogEntry
     /// and it may be better to spread merges tasks across the replicas
     /// instead of doing exactly the same merge cluster-wise
 
-    if (storage.merge_strategy_picker.shouldMergeOnSingleReplica(entry))
+    if (storage.merge_strategy_picker->shouldMergeOnSingleReplica(entry))
     {
-        std::optional<String> replica_to_execute_merge = storage.merge_strategy_picker.pickReplicaToExecuteMerge(entry);
+        std::optional<String> replica_to_execute_merge = storage.merge_strategy_picker->pickReplicaToExecuteMerge(entry);
         if (replica_to_execute_merge)
         {
             LOG_DEBUG(log,
@@ -70,7 +70,7 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MutateFromLogEntry
     }
 
     new_part_info = MergeTreePartInfo::fromPartName(entry.new_part_name, storage.format_version);
-    commands = MutationCommands::create(storage.queue.getMutationCommands(source_part, new_part_info.mutation));
+    commands = MutationCommands::create(storage.queue->getMutationCommands(source_part, new_part_info.mutation));
 
     /// Once we mutate part, we must reserve space on the same disk, because mutations can possibly create hardlinks.
     /// Can throw an exception.
@@ -141,7 +141,7 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MutateFromLogEntry
     fake_query_context->makeQueryContext();
     fake_query_context->setCurrentQueryId("");
 
-    mutate_task = storage.merger_mutator.mutatePartToTemporaryPart(
+    mutate_task = storage.merger_mutator->mutatePartToTemporaryPart(
             future_mutated_part, metadata_snapshot, commands, merge_mutate_entry.get(),
             entry.create_time, fake_query_context, reserved_space, table_lock_holder);
 

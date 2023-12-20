@@ -47,9 +47,9 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MergeFromLogEntryT
     /// and it may be better to spread merges tasks across the replicas
     /// instead of doing exactly the same merge cluster-wise
 
-    if (storage.merge_strategy_picker.shouldMergeOnSingleReplica(entry))
+    if (storage.merge_strategy_picker->shouldMergeOnSingleReplica(entry))
     {
-        std::optional<String> replica_to_execute_merge = storage.merge_strategy_picker.pickReplicaToExecuteMerge(entry);
+        std::optional<String> replica_to_execute_merge = storage.merge_strategy_picker->pickReplicaToExecuteMerge(entry);
         if (replica_to_execute_merge)
         {
             LOG_DEBUG(log,
@@ -209,7 +209,7 @@ std::pair<bool, ReplicatedMergeMutateTaskBase::PartLogWriter> MergeFromLogEntryT
     transaction_ptr = std::make_unique<MergeTreeData::Transaction>(storage);
     stopwatch_ptr = std::make_unique<Stopwatch>();
 
-    merge_task = storage.merger_mutator.mergePartsToTemporaryPart(
+    merge_task = storage.merger_mutator->mergePartsToTemporaryPart(
             future_merged_part,
             metadata_snapshot,
             merge_mutate_entry.get(),
@@ -243,7 +243,7 @@ bool MergeFromLogEntryTask::finalize(ReplicatedMergeMutateTaskBase::PartLogWrite
     /// Task is not needed
     merge_task.reset();
 
-    storage.merger_mutator.renameMergedTemporaryPart(part, parts, transaction_ptr.get());
+    storage.merger_mutator->renameMergedTemporaryPart(part, parts, transaction_ptr.get());
 
     try
     {

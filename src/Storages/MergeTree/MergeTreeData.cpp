@@ -192,7 +192,7 @@ MergeTreeData::MergeTreeData(
     const String & relative_data_path_,
     const StorageInMemoryMetadata & metadata_,
     ContextMutablePtr context_,
-    const String & date_column_name,
+    const String& date_column_name_,
     const MergingParams & merging_params_,
     std::unique_ptr<MergeTreeSettings> storage_settings_,
     bool require_part_metadata_,
@@ -213,55 +213,59 @@ MergeTreeData::MergeTreeData(
     , parts_mover(this)
     , background_operations_assignee(*this, BackgroundJobsAssignee::Type::DataProcessing, getContext())
     , background_moves_assignee(*this, BackgroundJobsAssignee::Type::Moving, getContext())
-{
-    context_->getGlobalContext()->initializeBackgroundExecutorsIfNeeded();
+    , storage_metadata(metadata_)
+    , attach_table(attach)
+    , date_column(date_column_name_)
+    , context_ptr(context_) {}
 
+void MergeTreeData::init() {
+    context_ptr->getGlobalContext()->initializeBackgroundExecutorsIfNeeded();
     const auto settings = getSettings();
-    allow_nullable_key = attach || settings->allow_nullable_key;
+    allow_nullable_key = attach_table || settings->allow_nullable_key;
 
     if (relative_data_path.empty())
         throw Exception("MergeTree storages require data path", ErrorCodes::INCORRECT_FILE_NAME);
 
     /// Check sanity of MergeTreeSettings. Only when table is created.
-    if (!attach)
+    if (!attach_table)
         settings->sanityCheck(getContext()->getSettingsRef());
 
-    MergeTreeDataFormatVersion min_format_version(0);
-    if (!date_column_name.empty())
+    min_format_version = MergeTreeDataFormatVersion(0);
+    if (!date_column.empty())
     {
         try
         {
-            checkPartitionKeyAndInitMinMax(metadata_.partition_key);
-            setProperties(metadata_, metadata_, attach);
+            checkPartitionKeyAndInitMinMax(storage_metadata.partition_key);
+            setProperties(storage_metadata, storage_metadata, attach_table);
             if (minmax_idx_date_column_pos == -1)
                 throw Exception("Could not find Date column", ErrorCodes::BAD_TYPE_OF_FIELD);
         }
         catch (Exception & e)
         {
             /// Better error message.
-            e.addMessage("(while initializing MergeTree partition key from date column " + backQuote(date_column_name) + ")");
+            e.addMessage("(while initializing MergeTree partition key from date column " + backQuote(date_column) + ")");
             throw;
         }
     }
     else
     {
         is_custom_partitioned = true;
-        checkPartitionKeyAndInitMinMax(metadata_.partition_key);
+        checkPartitionKeyAndInitMinMax(storage_metadata.partition_key);
         min_format_version = MERGE_TREE_DATA_MIN_FORMAT_VERSION_WITH_CUSTOM_PARTITIONING;
     }
-    setProperties(metadata_, metadata_, attach);
+    setProperties(storage_metadata, storage_metadata, attach_table);
 
     /// NOTE: using the same columns list as is read when performing actual merges.
-    merging_params.check(metadata_);
+    merging_params.check(storage_metadata);
 
-    if (metadata_.sampling_key.definition_ast != nullptr)
+    if (storage_metadata.sampling_key.definition_ast != nullptr)
     {
         /// This is for backward compatibility.
-        checkSampleExpression(metadata_, attach || settings->compatibility_allow_sampling_expression_not_in_primary_key,
-                              settings->check_sample_column_is_correct && !attach);
+        checkSampleExpression(storage_metadata, attach_table || settings->compatibility_allow_sampling_expression_not_in_primary_key,
+            settings->check_sample_column_is_correct && !attach_table);
     }
 
-    checkTTLExpressions(metadata_, metadata_);
+    checkTTLExpressions(storage_metadata, storage_metadata);
 
     /// format_file always contained on any data path
     PathWithDisk version_file;
@@ -270,7 +274,7 @@ MergeTreeData::MergeTreeData(
     {
         /// TODO: implement it the main issue in DataPartsExchange (not able to send directories metadata)
         if (supportsReplication() && settings->allow_remote_fs_zero_copy_replication
-            && disk->supportZeroCopyReplication() && metadata_.hasProjections())
+            && disk->supportZeroCopyReplication() && storage_metadata.hasProjections())
         {
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Projections are not supported when zero-copy replication is enabled for table. "
                             "Currently disk '{}' supports zero copy replication", disk->getName());
@@ -292,13 +296,25 @@ MergeTreeData::MergeTreeData(
     }
 
     /// If not choose any
-    if (version_file.first.empty())
-        version_file = {fs::path(relative_data_path) / MergeTreeData::FORMAT_VERSION_FILE_NAME, getStoragePolicy()->getAnyDisk()};
+    if (version_file.first.empty()) {
+        version_file = { fs::path(relative_data_path) / MergeTreeData::FORMAT_VERSION_FILE_NAME, getStoragePolicy()->getAnyDisk() };
+    }
 
+    bool need_lock = !attach_table && supportsReplication() && version_file.second->supportDataSharing();
+    DistributeLockGuardPtr lock_guard = nullptr;
+    while (need_lock && !lock_guard)
+    {
+        lock_guard = getDistributeLockGuardInInit(version_file.second->getName(), version_file.first, "create");
+        if (!lock_guard)
+        {
+            LOG_DEBUG(log, "wait for distributed lock");
+            sleep(1);
+        }
+    }
     bool version_file_exists = version_file.second->exists(version_file.first);
 
     // When data path or file not exists, ignore the format_version check
-    if (!attach || !version_file_exists)
+    if ((!attach_table && !version_file.second->supportDataSharing()) || !version_file_exists)
     {
         format_version = min_format_version;
         if (!version_file.second->isReadOnly())
@@ -318,7 +334,7 @@ MergeTreeData::MergeTreeData(
         if (!buf->eof())
             throw Exception("Bad version file: " + fullPath(version_file.second, version_file.first), ErrorCodes::CORRUPTED_DATA);
     }
-
+    lock_guard.reset();
     if (format_version < min_format_version)
     {
         if (min_format_version == MERGE_TREE_DATA_MIN_FORMAT_VERSION_WITH_CUSTOM_PARTITIONING.toUnderType())

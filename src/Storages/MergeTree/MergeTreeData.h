@@ -228,6 +228,13 @@ public:
         [[maybe_unused]] const String & part_name,
         [[maybe_unused]] const String & value) const { return nullptr; }
 
+    virtual DistributeLockGuardPtr getDistributeLockGuardInInit(
+        [[maybe_unused]] const String& disk_name,
+        [[maybe_unused]] const String& part_name,
+        [[maybe_unused]] const String& value) const {
+        return nullptr;
+    }
+
     MergeTreeDataPartType choosePartType(size_t bytes_uncompressed, size_t rows_count) const;
     MergeTreeDataPartType choosePartTypeOnDisk(size_t bytes_uncompressed, size_t rows_count) const;
 
@@ -960,6 +967,8 @@ public:
     /// Mutex for currently_submerging_parts and currently_emerging_parts
     mutable std::mutex currently_submerging_emerging_mutex;
 
+    void init();
+
 protected:
     friend class IMergeTreeDataPart;
     friend class MergeTreeDataMergerMutator;
@@ -1268,6 +1277,12 @@ private:
     virtual std::optional<ZeroCopyLock> tryCreateZeroCopyExclusiveLock(const String &, const DiskPtr &) { return std::nullopt; }
 
     TemporaryParts temporary_parts;
+
+    MergeTreeDataFormatVersion min_format_version;
+    const StorageInMemoryMetadata storage_metadata;
+    bool attach_table;
+    const String date_column;
+    ContextMutablePtr context_ptr;
 };
 
 /// RAII struct to record big parts that are submerging or emerging.
