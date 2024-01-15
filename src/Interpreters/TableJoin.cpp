@@ -401,18 +401,6 @@ bool TableJoin::oneDisjunct() const
     return clauses.size() == 1;
 }
 
-bool TableJoin::allowMergeJoin() const
-{
-    bool is_any = (strictness() == ASTTableJoin::Strictness::Any);
-    bool is_all = (strictness() == ASTTableJoin::Strictness::All);
-    bool is_semi = (strictness() == ASTTableJoin::Strictness::Semi);
-
-    bool all_join = is_all && (isInner(kind()) || isLeft(kind()) || isRight(kind()) || isFull(kind()));
-    bool special_left = isLeft(kind()) && (is_any || is_semi);
-
-    return (all_join || special_left) && oneDisjunct();
-}
-
 bool TableJoin::needStreamWithNonJoinedRows() const
 {
     if (strictness() == ASTTableJoin::Strictness::Asof ||

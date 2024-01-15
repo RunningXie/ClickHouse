@@ -188,14 +188,15 @@ public:
     bool sameStrictnessAndKind(ASTTableJoin::Strictness, ASTTableJoin::Kind) const;
     const SizeLimits & sizeLimits() const { return size_limits; }
     VolumePtr getTemporaryVolume() { return tmp_volume; }
-    bool allowMergeJoin() const;
-    bool preferMergeJoin() const { return join_algorithm == MultiEnum<JoinAlgorithm>(JoinAlgorithm::PREFER_PARTIAL_MERGE); }
-    bool forceMergeJoin() const { return join_algorithm == MultiEnum<JoinAlgorithm>(JoinAlgorithm::PARTIAL_MERGE); }
-    bool forceHashJoin() const
+    bool isEnabledAlgorithm(JoinAlgorithm val) const
     {
-        /// HashJoin always used for DictJoin
-        return dictionary_reader
-            || join_algorithm == MultiEnum<JoinAlgorithm>(JoinAlgorithm::HASH);
+        /// When join_algorithm = 'default' (not specified by user) we use hash or direct algorithm.
+        /// It's behaviour that was initially supported by clickhouse.
+        bool is_enbaled_by_default = val == JoinAlgorithm::DEFAULT
+            || val == JoinAlgorithm::HASH;
+        if (join_algorithm.isSet(JoinAlgorithm::DEFAULT) && is_enbaled_by_default)
+            return true;
+        return join_algorithm.isSet(val);
     }
 
     bool forceNullableRight() const { return join_use_nulls && isLeftOrFull(table_join.kind); }

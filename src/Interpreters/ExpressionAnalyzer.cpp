@@ -935,18 +935,30 @@ static ActionsDAGPtr createJoinedBlockActions(ContextPtr context, const TableJoi
     return ExpressionAnalyzer(expression_list, syntax_result, context).getActionsDAG(true, false);
 }
 
-static std::shared_ptr<IJoin> chooseJoinAlgorithm(std::shared_ptr<TableJoin> analyzed_join, const Block & sample_block, ContextPtr context)
+static std::shared_ptr<IJoin> chooseJoinAlgorithm(std::shared_ptr<TableJoin> analyzed_join, std::unique_ptr<QueryPlan>& joined_plan, ContextPtr context)
 {
+    Block right_sample_block = joined_plan->getCurrentDataStream().header;
     /// HashJoin with Dictionary optimisation
-    if (analyzed_join->tryInitDictJoin(sample_block, context))
-        return std::make_shared<HashJoin>(analyzed_join, sample_block);
+    if (analyzed_join->tryInitDictJoin(right_sample_block, context))
+        return std::make_shared<HashJoin>(analyzed_join, right_sample_block);
 
-    bool allow_merge_join = analyzed_join->allowMergeJoin();
-    if (analyzed_join->forceHashJoin() || (analyzed_join->preferMergeJoin() && !allow_merge_join))
-        return std::make_shared<HashJoin>(analyzed_join, sample_block);
-    else if (analyzed_join->forceMergeJoin() || (analyzed_join->preferMergeJoin() && allow_merge_join))
-        return std::make_shared<MergeJoin>(analyzed_join, sample_block);
-    return std::make_shared<JoinSwitcher>(analyzed_join, sample_block);
+    if (analyzed_join->isEnabledAlgorithm(JoinAlgorithm::PARTIAL_MERGE) ||
+        analyzed_join->isEnabledAlgorithm(JoinAlgorithm::PREFER_PARTIAL_MERGE))
+    {
+        if (MergeJoin::isSupported(analyzed_join))
+            return std::make_shared<MergeJoin>(analyzed_join, right_sample_block);
+    }
+    if (analyzed_join->isEnabledAlgorithm(JoinAlgorithm::HASH) ||
+        /// partial_merge is preferred, but can't be used for specified kind of join, fallback to hash
+        analyzed_join->isEnabledAlgorithm(JoinAlgorithm::PREFER_PARTIAL_MERGE))
+    {
+        return std::make_shared<HashJoin>(analyzed_join, right_sample_block);
+    }
+    if (analyzed_join->isEnabledAlgorithm(JoinAlgorithm::AUTO))
+        return std::make_shared<JoinSwitcher>(analyzed_join, right_sample_block);
+
+    throw Exception("Can't execute any of specified algorithms for specified strictness/kind and right storage type",
+        ErrorCodes::NOT_IMPLEMENTED);
 }
 
 static std::unique_ptr<QueryPlan> buildJoinedPlan(
@@ -1034,11 +1046,7 @@ JoinPtr SelectQueryExpressionAnalyzer::makeTableJoin(
         joined_plan->addStep(std::move(converting_step));
     }
 
-    JoinPtr join = chooseJoinAlgorithm(analyzed_join, joined_plan->getCurrentDataStream().header, getContext());
-
-    /// Do not make subquery for join over dictionary.
-    if (analyzed_join->getDictionaryReader())
-        joined_plan.reset();
+    JoinPtr join = chooseJoinAlgorithm(analyzed_join, joined_plan, getContext());
 
     return join;
 }
