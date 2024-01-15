@@ -30,7 +30,7 @@ IMPLEMENT_SETTING_ENUM(JoinStrictness, ErrorCodes::UNKNOWN_JOIN,
      {"ANY", JoinStrictness::ANY}})
 
 
-IMPLEMENT_SETTING_ENUM(JoinAlgorithm, ErrorCodes::UNKNOWN_JOIN,
+    IMPLEMENT_SETTING_MULTI_ENUM(JoinAlgorithm, ErrorCodes::UNKNOWN_JOIN,
     {{"auto",                 JoinAlgorithm::AUTO},
      {"hash",                 JoinAlgorithm::HASH},
      {"partial_merge",        JoinAlgorithm::PARTIAL_MERGE},
