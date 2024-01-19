@@ -82,8 +82,8 @@ private:
     const Names key_names;
     bool use_nulls;
     SizeLimits limits;
-    ASTTableJoin::Kind kind;                    /// LEFT | INNER ...
-    ASTTableJoin::Strictness strictness;        /// ANY | ALL
+    JoinKind kind;                    /// LEFT | INNER ...
+    JoinStrictness strictness;        /// ANY | ALL
     bool overwrite;
 
     std::shared_ptr<TableJoin> table_join;
@@ -107,8 +107,8 @@ protected:
         const Names & key_names_,
         bool use_nulls_,
         SizeLimits limits_,
-        ASTTableJoin::Kind kind_,
-        ASTTableJoin::Strictness strictness_,
+        JoinKind kind_,
+        JoinStrictness strictness_,
         const ColumnsDescription & columns_,
         const ConstraintsDescription & constraints_,
         const String & comment,

@@ -54,17 +54,17 @@ struct JoinedElement
 
     void rewriteCommaToCross()
     {
-        if (join && join->kind == ASTTableJoin::Kind::Comma)
-            join->kind = ASTTableJoin::Kind::Cross;
+        if (join && join->kind == JoinKind::Comma)
+            join->kind = JoinKind::Cross;
     }
 
     bool rewriteCrossToInner(ASTPtr on_expression)
     {
-        if (join->kind != ASTTableJoin::Kind::Cross)
+        if (join->kind != JoinKind::Cross)
             return false;
 
-        join->kind = ASTTableJoin::Kind::Inner;
-        join->strictness = ASTTableJoin::Strictness::All;
+        join->kind = JoinKind::Inner;
+        join->strictness = JoinStrictness::All;
 
         join->on_expression = on_expression;
         join->children.push_back(join->on_expression);

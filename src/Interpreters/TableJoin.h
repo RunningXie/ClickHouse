@@ -6,7 +6,6 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Interpreters/IJoin.h>
 #include <Interpreters/join_common.h>
-#include <Interpreters/asof.h>
 #include <QueryPipeline/SizeLimits.h>
 #include <DataTypes/getLeastSupertype.h>
 #include <Storages/IStorage_fwd.h>
@@ -39,12 +38,6 @@ struct Settings;
 
 class IVolume;
 using VolumePtr = std::shared_ptr<IVolume>;
-
-enum class JoinTableSide
-{
-    Left,
-    Right
-};
 
 class TableJoin
 {
@@ -123,7 +116,7 @@ private:
 
     ASTTableJoin table_join;
 
-    ASOF::Inequality asof_inequality = ASOF::Inequality::GreaterOrEquals;
+    ASOFJoinInequality asof_inequality = ASOFJoinInequality::GreaterOrEquals;
 
     /// All columns which can be read from joined table. Duplicating names are qualified.
     NamesAndTypesList columns_from_joined_table;
@@ -171,7 +164,7 @@ public:
     TableJoin(const Settings & settings, VolumePtr tmp_volume_);
 
     /// for StorageJoin
-    TableJoin(SizeLimits limits, bool use_nulls, ASTTableJoin::Kind kind, ASTTableJoin::Strictness strictness,
+    TableJoin(SizeLimits limits, bool use_nulls, JoinKind kind, JoinStrictness strictness,
               const Names & key_names_right)
         : size_limits(limits)
         , default_max_bytes(0)
@@ -183,9 +176,9 @@ public:
         table_join.strictness = strictness;
     }
 
-    ASTTableJoin::Kind kind() const { return table_join.kind; }
-    ASTTableJoin::Strictness strictness() const { return table_join.strictness; }
-    bool sameStrictnessAndKind(ASTTableJoin::Strictness, ASTTableJoin::Kind) const;
+    JoinKind kind() const { return table_join.kind; }
+    JoinStrictness strictness() const { return table_join.strictness; }
+    bool sameStrictnessAndKind(JoinStrictness, JoinKind) const;
     const SizeLimits & sizeLimits() const { return size_limits; }
     VolumePtr getTemporaryVolume() { return tmp_volume; }
     bool isEnabledAlgorithm(JoinAlgorithm val) const
@@ -267,8 +260,8 @@ public:
     std::pair<ActionsDAGPtr, ActionsDAGPtr>
     createConvertingActions(const ColumnsWithTypeAndName & left_sample_columns, const ColumnsWithTypeAndName & right_sample_columns);
 
-    void setAsofInequality(ASOF::Inequality inequality) { asof_inequality = inequality; }
-    ASOF::Inequality getAsofInequality() { return asof_inequality; }
+    void setAsofInequality(ASOFJoinInequality inequality) { asof_inequality = inequality; }
+    ASOFJoinInequality getAsofInequality() { return asof_inequality; }
 
     ASTPtr leftKeysList() const;
     ASTPtr rightKeysList() const; /// For ON syntax only

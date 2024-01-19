@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/SettingsFields.h>
+#include <Core/Joins.h>
 #include <QueryPipeline/SizeLimits.h>
 #include <Formats/FormatSettings.h>
 
@@ -26,24 +27,7 @@ enum class LoadBalancing
 
 DECLARE_SETTING_ENUM(LoadBalancing)
 
-
-enum class JoinStrictness
-{
-    Unspecified = 0, /// Query JOIN without strictness will throw Exception.
-    ALL, /// Query JOIN without strictness -> ALL JOIN ...
-    ANY, /// Query JOIN without strictness -> ANY JOIN ...
-};
-
 DECLARE_SETTING_ENUM(JoinStrictness)
-
-enum class JoinAlgorithm
-{
-    DEFAULT = 0,
-    AUTO,
-    HASH,
-    PARTIAL_MERGE,
-    PREFER_PARTIAL_MERGE,
-};
 
 DECLARE_SETTING_MULTI_ENUM(JoinAlgorithm)
 
