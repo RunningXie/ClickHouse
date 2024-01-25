@@ -13,8 +13,15 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <utime.h>
+#include <Common/ProfileEvents.h>
+#include <Disks/IDisk.h>
 
 namespace fs = std::filesystem;
+
+namespace ProfileEvents
+{
+    extern const Event ExternalProcessingFilesTotal;
+}
 
 namespace DB
 {
@@ -44,17 +51,20 @@ struct statvfs getStatVFS(const String & path)
 }
 
 
-bool enoughSpaceInDirectory(const std::string & path [[maybe_unused]], size_t data_size [[maybe_unused]])
+bool enoughSpaceInDirectory(const std::string& path, size_t data_size)
 {
-    auto free_space = fs::space(path).free;
+    fs::path filepath(path);
+    /// `path` may point to nonexisting file, then we can't check it directly, move to parent directory
+    while (filepath.has_parent_path() && !fs::exists(filepath))
+        filepath = filepath.parent_path();
+    auto free_space = fs::space(filepath).free;
     return data_size <= free_space;
 }
 
 std::unique_ptr<TemporaryFile> createTemporaryFile(const std::string & path)
 {
+    ProfileEvents::increment(ProfileEvents::ExternalProcessingFilesTotal);
     fs::create_directories(path);
-
-    /// NOTE: std::make_shared cannot use protected constructors
     return std::make_unique<TemporaryFile>(path);
 }
 

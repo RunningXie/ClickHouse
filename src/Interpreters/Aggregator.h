@@ -33,6 +33,7 @@
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnLowCardinality.h>
+#include <Interpreters/TemporaryDataOnDisk.h>
 
 
 namespace DB
@@ -1026,14 +1027,15 @@ public:
     std::vector<Block> convertBlockToTwoLevel(const Block & block) const;
 
     /// For external aggregation.
-    void writeToTemporaryFile(AggregatedDataVariants & data_variants, const String & tmp_path) const;
-    void writeToTemporaryFile(AggregatedDataVariants & data_variants) const;
+    void writeToTemporaryFile(AggregatedDataVariants& data_variants, size_t max_temp_file_size = 0) const;
+
+    TemporaryFileOnDiskHolder createTempFile(size_t max_temp_file_size) const;
 
     bool hasTemporaryFiles() const { return !temporary_files.empty(); }
 
     struct TemporaryFiles
     {
-        std::vector<std::unique_ptr<Poco::TemporaryFile>> files;
+        std::vector<TemporaryFileOnDiskHolder> files;
         size_t sum_size_uncompressed = 0;
         size_t sum_size_compressed = 0;
         mutable std::mutex mutex;
