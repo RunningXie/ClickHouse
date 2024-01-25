@@ -26,6 +26,7 @@
 #include <Interpreters/AggregateDescription.h>
 #include <Interpreters/AggregationCommon.h>
 #include <Interpreters/JIT/compileFunction.h>
+#include <Interpreters/TemporaryDataOnDisk.h>
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnFixedString.h>
@@ -920,7 +921,7 @@ public:
         /// Return empty result when aggregating without keys on empty set.
         bool empty_result_for_aggregation_by_empty_set;
 
-        VolumePtr tmp_volume;
+        TemporaryDataOnDiskScopePtr tmp_data_scope;
 
         /// Settings is used to determine cache size. No threads are created.
         size_t max_threads;
@@ -937,7 +938,7 @@ public:
             size_t group_by_two_level_threshold_, size_t group_by_two_level_threshold_bytes_,
             size_t max_bytes_before_external_group_by_,
             bool empty_result_for_aggregation_by_empty_set_,
-            VolumePtr tmp_volume_, size_t max_threads_,
+            TemporaryDataOnDiskScopePtr tmp_data_scope_, size_t max_threads_,
             size_t min_free_disk_space_,
             bool compile_aggregate_expressions_,
             size_t min_count_to_compile_aggregate_expression_,
@@ -949,7 +950,7 @@ public:
             group_by_two_level_threshold(group_by_two_level_threshold_), group_by_two_level_threshold_bytes(group_by_two_level_threshold_bytes_),
             max_bytes_before_external_group_by(max_bytes_before_external_group_by_),
             empty_result_for_aggregation_by_empty_set(empty_result_for_aggregation_by_empty_set_),
-            tmp_volume(tmp_volume_), max_threads(max_threads_),
+            tmp_data_scope(std::move(tmp_data_scope_)), max_threads(max_threads_),
             min_free_disk_space(min_free_disk_space_),
             compile_aggregate_expressions(compile_aggregate_expressions_),
             min_count_to_compile_aggregate_expression(min_count_to_compile_aggregate_expression_)
@@ -1029,25 +1030,9 @@ public:
     /// For external aggregation.
     void writeToTemporaryFile(AggregatedDataVariants& data_variants, size_t max_temp_file_size = 0) const;
 
-    TemporaryFileOnDiskHolder createTempFile(size_t max_temp_file_size) const;
+    bool hasTemporaryData() const { return tmp_data && !tmp_data->empty(); }
 
-    bool hasTemporaryFiles() const { return !temporary_files.empty(); }
-
-    struct TemporaryFiles
-    {
-        std::vector<TemporaryFileOnDiskHolder> files;
-        size_t sum_size_uncompressed = 0;
-        size_t sum_size_compressed = 0;
-        mutable std::mutex mutex;
-
-        bool empty() const
-        {
-            std::lock_guard lock(mutex);
-            return files.empty();
-        }
-    };
-
-    const TemporaryFiles & getTemporaryFiles() const { return temporary_files; }
+    const TemporaryDataOnDisk& getTemporaryData() const { return *tmp_data; }
 
     /// Get data structure of the result.
     Block getHeader(bool final) const;
@@ -1102,7 +1087,7 @@ private:
     Poco::Logger * log = &Poco::Logger::get("Aggregator");
 
     /// For external aggregation.
-    mutable TemporaryFiles temporary_files;
+    TemporaryDataOnDiskPtr tmp_data;
 
 #if USE_EMBEDDED_COMPILER
     std::shared_ptr<CompiledAggregateFunctionsHolder> compiled_aggregate_functions_holder;
@@ -1168,7 +1153,7 @@ private:
     void writeToTemporaryFileImpl(
         AggregatedDataVariants & data_variants,
         Method & method,
-        NativeWriter & out) const;
+        TemporaryFileStream& out) const;
 
     /// Merge NULL key data from hash table `src` into `dst`.
     template <typename Method, typename Table>

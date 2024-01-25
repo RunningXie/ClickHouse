@@ -29,10 +29,12 @@
 #include <Storages/CompressionCodecSelector.h>
 #include <Storages/StorageS3Settings.h>
 #include <Disks/DiskLocal.h>
+#include <Disks/DiskDecorator.h>
 #include <Disks/IDiskRemote.h>
 #include <TableFunctions/TableFunctionFactory.h>
 #include <Interpreters/ActionLocksManager.h>
 #include <Interpreters/ExternalLoaderXMLConfigRepository.h>
+#include <Interpreters/TemporaryDataOnDisk.h>
 #include <Core/Settings.h>
 #include <Core/SettingsQuirks.h>
 #include <Access/AccessControl.h>
@@ -176,7 +178,7 @@ struct ContextSharedPart
     ConfigurationPtr config;                                /// Global configuration settings.
 
     String tmp_path;                                        /// Path to the temporary files that occur when processing the request.
-    mutable VolumePtr tmp_volume;                           /// Volume for the the temporary files that occur when processing the request.
+    TemporaryDataOnDiskScopePtr temp_data_on_disk; /// Temporary files that occur when processing the request accounted here.
 
     mutable VolumePtr backups_volume;                       /// Volume for all the backups.
 
@@ -574,10 +576,27 @@ Strings Context::getWarnings() const
     return common_warnings;
 }
 
+/// TODO: remove, use `getTempDataOnDisk`
 VolumePtr Context::getTemporaryVolume() const
 {
     auto lock = getLock();
-    return shared->tmp_volume;
+    if (shared->temp_data_on_disk)
+        return shared->temp_data_on_disk->getVolume();
+    return nullptr;
+}
+
+TemporaryDataOnDiskScopePtr Context::getTempDataOnDisk() const
+{
+    auto lock = getLock();
+    if (this->temp_data_on_disk)
+        return this->temp_data_on_disk;
+    return shared->temp_data_on_disk;
+}
+
+void Context::setTempDataOnDisk(TemporaryDataOnDiskScopePtr temp_data_on_disk_)
+{
+    auto lock = getLock();
+    this->temp_data_on_disk = std::move(temp_data_on_disk_);
 }
 
 void Context::setPath(const String & path)
@@ -586,7 +605,7 @@ void Context::setPath(const String & path)
 
     shared->path = path;
 
-    if (shared->tmp_path.empty() && !shared->tmp_volume)
+    if (shared->tmp_path.empty() && !shared->temp_data_on_disk)
         shared->tmp_path = shared->path + "tmp/";
 
     if (shared->flags_path.empty())
@@ -602,9 +621,10 @@ void Context::setPath(const String & path)
         shared->user_scripts_path = shared->path + "user_scripts/";
 }
 
-VolumePtr Context::setTemporaryStorage(const String & path, const String & policy_name)
+VolumePtr Context::setTemporaryStorage(const String& path, const String& policy_name, size_t max_size)
 {
     std::lock_guard lock(shared->storage_policies_mutex);
+    VolumePtr volume;
 
     if (policy_name.empty())
     {
@@ -613,21 +633,42 @@ VolumePtr Context::setTemporaryStorage(const String & path, const String & polic
             shared->tmp_path += '/';
 
         auto disk = std::make_shared<DiskLocal>("_tmp_default", shared->tmp_path, 0);
-        shared->tmp_volume = std::make_shared<SingleDiskVolume>("_tmp_default", disk, 0);
+        volume = std::make_shared<SingleDiskVolume>("_tmp_default", disk, 0);
     }
     else
     {
         StoragePolicyPtr tmp_policy = getStoragePolicySelector(lock)->get(policy_name);
         if (tmp_policy->getVolumes().size() != 1)
             throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG,
-                "Policy '{} is used temporary files, such policy should have exactly one volume", policy_name);
-        shared->tmp_volume = tmp_policy->getVolume(0);
+                "Policy '{}' is used temporary files, such policy should have exactly one volume", policy_name);
+        volume = tmp_policy->getVolume(0);
     }
 
-    if (shared->tmp_volume->getDisks().empty())
+    if (volume->getDisks().empty())
          throw Exception("No disks volume for temporary files", ErrorCodes::NO_ELEMENTS_IN_CONFIG);
 
-    return shared->tmp_volume;
+    for (const auto& disk : volume->getDisks())
+    {
+        if (!disk)
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "Temporary disk is null");
+
+        /// Check that underlying disk is local (can be wrapped in decorator)
+        DiskPtr disk_ptr = disk;
+        if (const auto* disk_decorator = dynamic_cast<const DiskDecorator*>(disk_ptr.get()))
+            disk_ptr = disk_decorator->getNestedDisk();
+
+        if (dynamic_cast<const DiskLocal*>(disk_ptr.get()) == nullptr)
+        {
+            const auto* disk_raw_ptr = disk_ptr.get();
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG,
+                "Disk '{}' ({}) is not local and can't be used for temporary files",
+                disk_ptr->getName(), typeid(*disk_raw_ptr).name());
+        }
+    }
+
+    shared->temp_data_on_disk = std::make_shared<TemporaryDataOnDiskScope>(volume, max_size);
+
+    return volume;
 }
 
 void Context::setFlagsPath(const String & path)
@@ -2691,17 +2732,13 @@ void Context::shutdown()
         }
     }
 
-    // Special volumes might also use disks that require shutdown.
-    for (const auto & volume : {shared->tmp_volume, shared->backups_volume})
+    /// Special volumes might also use disks that require shutdown.
+    auto & tmp_data = shared->temp_data_on_disk;
+    if (tmp_data && tmp_data->getVolume())
     {
-        if (volume)
-        {
-            auto & disks = volume->getDisks();
-            for (auto & disk : disks)
-            {
-                disk->shutdown();
-            }
-        }
+        auto & disks = tmp_data->getVolume()->getDisks();
+        for (auto & disk : disks)
+            disk->shutdown();
     }
 
     shared->shutdown();

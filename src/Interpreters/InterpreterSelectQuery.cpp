@@ -2103,7 +2103,7 @@ void InterpreterSelectQuery::executeAggregation(QueryPlan & query_plan, const Ac
         settings.empty_result_for_aggregation_by_empty_set
             || (settings.empty_result_for_aggregation_by_constant_keys_on_empty_set && keys.empty()
                 && query_analyzer->hasConstAggregationKeys()),
-        context->getTemporaryVolume(),
+        context->getTempDataOnDisk(),
         settings.max_threads,
         settings.min_free_disk_space_for_temporary_data,
         settings.compile_aggregate_expressions,
@@ -2209,7 +2209,7 @@ void InterpreterSelectQuery::executeRollupOrCube(QueryPlan & query_plan, Modific
         0,
         settings.max_bytes_before_external_group_by,
         settings.empty_result_for_aggregation_by_empty_set,
-        context->getTemporaryVolume(),
+        context->getTempDataOnDisk(),
         settings.max_threads,
         settings.min_free_disk_space_for_temporary_data,
         settings.compile_aggregate_expressions,
@@ -2319,7 +2319,7 @@ void InterpreterSelectQuery::executeWindow(QueryPlan & query_plan)
                 settings.max_bytes_before_remerge_sort,
                 settings.remerge_sort_lowered_memory_bytes_ratio,
                 settings.max_bytes_before_external_sort,
-                context->getTemporaryVolume(),
+                context->getTempDataOnDisk(),
                 settings.min_free_disk_space_for_temporary_data);
             sorting_step->setStepDescription("Sorting for window '" + w.window_name + "'");
             query_plan.addStep(std::move(sorting_step));
@@ -2377,7 +2377,7 @@ void InterpreterSelectQuery::executeOrder(QueryPlan & query_plan, InputOrderInfo
         settings.max_bytes_before_remerge_sort,
         settings.remerge_sort_lowered_memory_bytes_ratio,
         settings.max_bytes_before_external_sort,
-        context->getTemporaryVolume(),
+        context->getTempDataOnDisk(),
         settings.min_free_disk_space_for_temporary_data);
 
     sorting_step->setStepDescription("Sorting for ORDER BY");

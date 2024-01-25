@@ -79,6 +79,8 @@ public:
 
     UInt32 getRefCount(const String & path) const override { return delegate->getRefCount(path); }
 
+    virtual DiskPtr getNestedDisk() const;
+
 protected:
     Executor & getExecutor() override;
 

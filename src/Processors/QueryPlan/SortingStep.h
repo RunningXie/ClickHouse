@@ -2,7 +2,7 @@
 #include <Processors/QueryPlan/ITransformingStep.h>
 #include <Core/SortDescription.h>
 #include <QueryPipeline/SizeLimits.h>
-#include <Disks/IVolume.h>
+#include <Interpreters/TemporaryDataOnDisk.h>
 
 namespace DB
 {
@@ -21,7 +21,7 @@ public:
         size_t max_bytes_before_remerge_,
         double remerge_lowered_memory_bytes_ratio_,
         size_t max_bytes_before_external_sort_,
-        VolumePtr tmp_volume_,
+        TemporaryDataOnDiskScopePtr tmp_data_,
         size_t min_free_disk_space_);
 
     /// FinishSorting
@@ -69,7 +69,8 @@ private:
     size_t max_bytes_before_remerge = 0;
     double remerge_lowered_memory_bytes_ratio = 0;
     size_t max_bytes_before_external_sort = 0;
-    VolumePtr tmp_volume;
+    TemporaryDataOnDiskScopePtr tmp_data = nullptr;
+
     size_t min_free_disk_space = 0;
 };
 
