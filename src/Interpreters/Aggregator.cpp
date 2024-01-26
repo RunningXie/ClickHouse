@@ -252,7 +252,7 @@ public:
 
 Aggregator::Aggregator(const Params & params_)
     : params(params_)
-    , tmp_data(params.tmp_data_scope ? std::make_unique<TemporaryDataOnDisk>(params.tmp_data_scope) : nullptr)
+    , tmp_data(params.tmp_data_scope ? std::make_unique<TemporaryDataOnDisk>(params.tmp_data_scope, CurrentMetrics::TemporaryFilesForAggregation) : nullptr)
 {
     /// Use query-level memory tracker
     if (auto * memory_tracker_child = CurrentThread::getMemoryTracker())
@@ -1093,7 +1093,7 @@ void Aggregator::writeToTemporaryFile(AggregatedDataVariants& data_variants, siz
     size_t rows = data_variants.size();
 
 
-    auto& out_stream = tmp_data->createStream(getHeader(false), CurrentMetrics::TemporaryFilesForAggregation, max_temp_file_size);
+    auto& out_stream = tmp_data->createStream(getHeader(false), max_temp_file_size);
     ProfileEvents::increment(ProfileEvents::ExternalAggregationWritePart);
 
     LOG_DEBUG(log, "Writing part of aggregation data into temporary file {}", out_stream.path());
