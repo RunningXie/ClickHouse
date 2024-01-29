@@ -100,7 +100,8 @@ namespace DB
         AUTO,
         HASH,
         PARTIAL_MERGE,
-        PREFER_PARTIAL_MERGE
+        PREFER_PARTIAL_MERGE,
+        GRACE_HASH
     };
 
     const char* toString(JoinAlgorithm join_algorithm);

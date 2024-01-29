@@ -61,6 +61,7 @@ namespace DB
         case JoinAlgorithm::HASH: return "HASH";
         case JoinAlgorithm::PARTIAL_MERGE: return "PARTIAL_MERGE";
         case JoinAlgorithm::PREFER_PARTIAL_MERGE: return "PREFER_PARTIAL_MERGE";
+        case JoinAlgorithm::GRACE_HASH: return "GRACE_HASH";
         }
     }
 

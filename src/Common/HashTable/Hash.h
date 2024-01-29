@@ -73,8 +73,8 @@ inline DB::UInt64 intHashCRC32(DB::UInt64 x, DB::UInt64 updated_value)
 }
 
 template <typename T>
-inline typename std::enable_if<(sizeof(T) > sizeof(DB::UInt64)), DB::UInt64>::type
-intHashCRC32(const T & x, DB::UInt64 updated_value)
+    requires std::has_unique_object_representations_v<T> && (sizeof(T) % sizeof(DB::UInt64) == 0)
+inline DB::UInt64 intHashCRC32(const T& x, DB::UInt64 updated_value)
 {
     const auto * begin = reinterpret_cast<const char *>(&x);
     for (size_t i = 0; i < sizeof(T); i += sizeof(UInt64))
@@ -86,6 +86,22 @@ intHashCRC32(const T & x, DB::UInt64 updated_value)
     return updated_value;
 }
 
+template <typename T>
+inline typename std::enable_if<std::is_floating_point<T>::value && sizeof(T) <= sizeof(DB::UInt64), DB::UInt64>::type
+intHashCRC32(T x, DB::UInt64 updated_value)
+{
+    static_assert(std::numeric_limits<T>::is_iec559);
+
+    // In IEEE 754, the only two floating point numbers that compare equal are 0.0 and -0.0.
+    // See std::hash<float>.
+    if (x == static_cast<T>(0.0))
+        return intHashCRC32(0, updated_value);
+
+    DB::UInt64 repr;
+    std::memcpy(&repr, &x, sizeof(repr));
+
+    return intHashCRC32(repr, updated_value);
+}
 
 inline UInt32 updateWeakHash32(const DB::UInt8 * pos, size_t size, DB::UInt32 updated_value)
 {
