@@ -14,14 +14,15 @@ CREATE TABLE d_src (id UInt64, country_id UInt8, name String) Engine = Memory;
 INSERT INTO t VALUES (0, 0);
 INSERT INTO d_src VALUES (0, 0, 'n');
 
+-- change the user and password
 CREATE DICTIONARY d (id UInt32, country_id UInt8, name String)
 PRIMARY KEY id
 SOURCE(CLICKHOUSE(HOST 'localhost' PORT tcpPort() USER 'default' DB 'db_01391' table 'd_src'))
 LIFETIME(MIN 1 MAX 1)
 LAYOUT(HASHED());
 
-select click_country_id from t cc
-left join d on toUInt32(d.id) = cc.click_city_id;
+SELECT click_country_id FROM t AS cc LEFT JOIN d ON toUInt32(d.id) = cc.click_city_id;
+SELECT click_country_id FROM t AS cc LEFT JOIN d ON d.country_id < 99 AND d.id = cc.click_city_id;
 
 DROP DICTIONARY d;
 DROP TABLE t;

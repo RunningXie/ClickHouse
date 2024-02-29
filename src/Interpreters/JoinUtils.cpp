@@ -331,9 +331,10 @@ namespace DB
 
             for (const auto& column_name : names)
             {
-                auto& column = block.getByName(column_name).column;
-                column = recursiveRemoveLowCardinality(column->convertToFullColumnIfConst());
-                ptrs[column_name] = column.get();
+                auto& column = block.getByName(column_name);
+                column.column = recursiveRemoveLowCardinality(column.column->convertToFullColumnIfConst());
+                column.type = recursiveRemoveLowCardinality(column.type);
+                ptrs[column_name] = column.column.get();
             }
 
             return ptrs;

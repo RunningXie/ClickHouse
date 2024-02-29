@@ -1143,8 +1143,7 @@ bool MergeJoin::isSupported(const std::shared_ptr<TableJoin>& table_join)
     bool is_semi = (strictness == JoinStrictness::Semi);
 
     bool all_join = is_all && (isInner(kind) || isLeft(kind) || isRight(kind) || isFull(kind));
-    //bool special_left = isInnerOrLeft(kind) && (is_any || is_semi);
-    bool special_left = isInnerOrRight(kind) && (is_any || is_semi);
+    bool special_left = isInnerOrLeft(kind) && (is_any || is_semi);
 
     return (all_join || special_left) && table_join->oneDisjunct();
 }

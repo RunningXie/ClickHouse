@@ -37,8 +37,8 @@ namespace DB
     public:
         struct StatAtomic
         {
-            std::atomic<size_t> compressed_size;
-            std::atomic<size_t> uncompressed_size;
+            std::atomic<size_t> compressed_size = 0;
+            std::atomic<size_t> uncompressed_size = 0;
         };
 
         explicit TemporaryDataOnDiskScope(VolumePtr volume_, size_t limit_)

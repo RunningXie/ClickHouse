@@ -55,7 +55,6 @@ ReplicatedMergeTreeRestartingThread::ReplicatedMergeTreeRestartingThread(Storage
 
 void ReplicatedMergeTreeRestartingThread::run()
 {
-    LOG_TRACE(log, "ReplicatedMergeTreeRestartingThread start periodic inspection");
     if (need_stop)
         return;
 

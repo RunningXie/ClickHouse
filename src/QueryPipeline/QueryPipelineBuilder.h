@@ -7,6 +7,7 @@
 #include <Storages/TableLockHolder.h>
 #include <Interpreters/Context_fwd.h>
 
+namespace Poco { class Logger; }
 namespace DB
 {
 
@@ -107,6 +108,8 @@ public:
         std::unique_ptr<QueryPipelineBuilder> right,
         JoinPtr join,
         size_t max_block_size,
+        size_t max_streams,
+        bool keep_left_read_in_order,
         Processors * collected_processors = nullptr);
 
     /// Add other pipeline and execute it before current one.
@@ -179,6 +182,7 @@ private:
     void setCollectedProcessors(Processors * processors);
 
     friend class QueryPipelineProcessorsCollector;
+    static Poco::Logger* log;
 };
 
 /// This is a small class which collects newly added processors to QueryPipeline.
